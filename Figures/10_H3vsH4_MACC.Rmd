@@ -1,0 +1,223 @@
+---
+title: "H4 vs H3 ChIP-MNase-seq"
+author: "Sara Wernig-Zorc"
+date: "03/01/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE, 
+                      error = FALSE, 
+                      tidy = TRUE)  
+
+knitr::opts_knit$set(root.dir = "/path/to/plots")
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.width=5, fig.height=5) 
+```
+
+```{r load libraries, include=FALSE}
+library(LSD)
+library(ggplot2)
+library(ChIPpeakAnno)
+library(dplyr)
+library(corrr)
+library(GenomicRanges)
+library(rtracklayer)
+library(ChIPseeker)
+library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
+library(GenomicFeatures)
+library(ggplot2)
+library(clusterProfiler)
+```
+
+```{r load H4 data, include=FALSE}
+H4.mono <- read.delim("/path/to/RUN/09_nucMACC/nucMACC_result_table.tsv") 
+H4.sub <- read.delim("/path/to/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv")
+```
+
+```{r load H3 data, include=FALSE}
+H3.mono <- read.delim("/path/to/RUN/09_nucMACC/nucMACC_result_table.tsv")
+H3.sub <- read.delim("/path/to/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv") 
+```
+
+```{r H3vsH4, include=FALSE}
+H3.mono.nucs <- GRanges(H3.mono)
+H4.mono.nucs <- GRanges(H4.mono)
+
+H3.sub.nucs <- GRanges(H3.sub)
+H4.sub.nucs <- GRanges(H4.sub)
+
+H3.H4.mono <- findOverlaps(H3.mono.nucs,H4.mono.nucs, minoverlap = 100)
+H3.H4.sub <- findOverlaps(H3.sub.nucs,H4.sub.nucs, minoverlap = 70)
+
+corr_mono <- cbind(H3.mono.nucs$nucMACC[H3.H4.mono@from],H4.mono.nucs$nucMACC[H3.H4.mono@to])
+corr_sub <- cbind(H3.sub.nucs$sub.nucMACC[H3.H4.sub@from],H4.sub.nucs$sub.nucMACC[H3.H4.sub@to])
+```
+
+# H4: Mono- vs. sub- nucleosomes
+```{r H4 mono vs. sub nucs}
+H4.mono.sub <- findOverlaps(H4.mono.nucs,H4.sub.nucs, minoverlap = 100)
+corr_H4 <- cbind(H4.mono.nucs$nucMACC[H4.mono.sub@from],H4.sub.nucs$sub.nucMACC[H4.mono.sub@to])
+
+pdf("SubVsMonoNucs_H4_corr.pdf")
+heatscatter(corr_H4[,1],corr_H4[,2],cor=T,xlab="mono-nucs",ylab = "sub-nucs", main="H4: mono vs. sub nucMACC ",method="pearson",xlim=c(-1,0.8),ylim=c(-1,0.8))
+dev.off()
+```
+
+# H3: Mono- vs. sub- nucleosomes
+```{r H3 mono vs. sub nucs}
+H3.mono.sub <- findOverlaps(H3.mono.nucs,H3.sub.nucs, minoverlap = 100)
+corr_H3 <- cbind(H3.mono.nucs$nucMACC[H3.mono.sub@from],H3.sub.nucs$sub.nucMACC[H3.mono.sub@to])
+
+heatscatter(corr_H3[,1],corr_H3[,2],cor=T,xlab="mono-nucs",ylab = "sub-nucs", main="H3: mono vs. sub nucMACC ",method="pearson",xlim=c(-0.8,0.6),ylim=c(-0.8,0.6))
+```
+
+# H3 vs H4: Mono-nucleosomes
+```{r corr between H3 and H4 mono-nucs}
+pdf("Mono-nucs_H3vsH4_overlap.pdf")
+makeVennDiagram(Peaks = list(H3.mono.nucs, H4.mono.nucs),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+pdf("nucMACC_corr.pdf")
+heatscatter(corr_mono[,1],corr_mono[,2],cor=T,xlab="H3",ylab = "H4", main="H3 vs H4 nucMACC ",method="pearson")
+dev.off()
+```
+
+# H3 vs H4: Sub-nucleosomes
+```{r corr between H3 and H4 sub-nucs}
+pdf("Sub-nucs_H3vsH4_overlap.pdf")
+makeVennDiagram(Peaks = list(H3.sub.nucs, H4.sub.nucs),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+pdf("Sub-nucs_H3vsH4_nucMACC-corr.pdf")
+heatscatter(corr_sub[,1],corr_sub[,2],cor=T,xlab="H3",ylab = "H4",method = "pearson", main="H3 vs H4 sub-nucMACC")
+dev.off()
+```
+
+```{r input special nucs, include=FALSE}
+H3.frag <- read.table("/Users/sara/data/MACC_project/nextflow_out/H3_ChIP_v2_featureCOUNTS/RUN/10_sub-nucMACC/unStable_subNucs.bed",sep="\t",header=FALSE)
+colnames(H3.frag) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H3_frag <- GRanges(H3.frag)
+
+H3.alt <- read.table("/Users/sara/data/MACC_project/nextflow_out/H3_ChIP_v2_featureCOUNTS/RUN/10_sub-nucMACC/nonCanonical_subNucs.bed",sep="\t",header=FALSE)
+colnames(H3.alt) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H3_alt <- GRanges(H3.alt)
+
+H3.lowMACC <- read.table("/Users/sara/data/MACC_project/nextflow_out/H3_ChIP_v2_featureCOUNTS/RUN/09_nucMACC/hypoAcc_monoNucs.bed",sep="\t",header=FALSE)
+colnames(H3.lowMACC) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H3_lowMACC <- GRanges(H3.lowMACC)
+
+H3.highMACC <- read.table("/Users/sara/data/MACC_project/nextflow_out/H3_ChIP_v2_featureCOUNTS/RUN/09_nucMACC/hyperAcc_monoNucs.bed",sep="\t",header=FALSE)
+colnames(H3.highMACC) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H3_highMACC <- GRanges(H3.highMACC)
+
+################## H4 ###############
+H4.frag <- read.table("/path/to/RUN/10_sub-nucMACC/unStable_subNucs.bed",sep="\t",header=FALSE)
+colnames(H4.frag) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H4_frag <- GRanges(H4.frag)
+
+H4.alt <- read.table("/path/to/RUN/10_sub-nucMACC/nonCanonical_subNucs.bed",sep="\t",header=FALSE)
+colnames(H4.alt) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H4_alt <- GRanges(H4.alt)
+
+H4.lowMACC <- read.table("/path/to/RUN/09_nucMACC/hypoAcc_monoNucs.bed",sep="\t",header=FALSE)
+colnames(H4.lowMACC) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H4_lowMACC <- GRanges(H4.lowMACC)
+
+H4.highMACC <- read.table("/path/to/RUN/09_nucMACC/hyperAcc_monoNucs.bed",sep="\t",header=FALSE)
+colnames(H4.highMACC) <- c("Chr","Start","End","nucID","nucMACC","Strand")
+H4_highMACC <- GRanges(H4.highMACC)
+```
+
+# H3 vs H4: Unstable nucleosomes
+```{r H3 vs H4 fragile-nucs}
+fragile_nucs <- findOverlaps(H3_frag, H4_frag , minoverlap = 100)
+corr_fragile <- cbind(H3_frag$nucMACC[fragile_nucs@from],H4_frag$nucMACC[fragile_nucs@to])
+
+pdf("H3vsH4_Fragile-nucs_overlap.pdf")
+makeVennDiagram(Peaks = list(H3_frag, H4_frag),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 6000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+pdf("H3vsH4_FragileNucs-nucMACC_corr.pdf")
+heatscatter(corr_fragile[,1],corr_fragile[,2],cor=T,xlab="H3",ylab = "H4",
+            method = "pearson", main="H3 vs H4 fragNuc",xlim=c(-1,-0.4),ylim=c(-1,-0.4))
+dev.off()
+```
+
+# H3 vs H4: Non-canonical nucleosomes
+```{r alt nucs}
+alt_nucs <- findOverlaps(H3_alt, H4_alt , minoverlap = 100)
+corr_alt <- cbind(H3_alt$nucMACC[alt_nucs@from],H4_alt$nucMACC[alt_nucs@to])
+
+pdf("H3vsH4_altNucs_overlap.pdf")
+makeVennDiagram(Peaks = list(H3_alt, H4_alt),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+pdf("H3vsH4_altNucs-nucMACC_corr.pdf")
+heatscatter(corr_alt[,1],corr_alt[,2],cor=T,xlab="H3",ylab = "H4",
+            method = "pearson", main="H3 vs H4 altNuc")
+dev.off()
+```
+
+# H3 vs H4: hyper-accessible nucleosomes
+```{r highMACC}
+pdf("H3vsH4_highMACCNucs_overlap.pdf")
+makeVennDiagram(Peaks = list(H3_highMACC, H4_highMACC),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 20000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+highMACC_nucs <- findOverlaps(H3_highMACC, H4_highMACC , minoverlap = 100)
+corr_highMACC <- cbind(H3_highMACC$nucMACC[highMACC_nucs@from],H4_highMACC$nucMACC[highMACC_nucs@to])
+
+pdf("H3vsH4_highMACCNucs-nucMACC_corr.pdf")
+heatscatter(corr_highMACC[,1],corr_highMACC[,2],cor=T,xlab="H3",ylab = "H4",
+            method = "pearson", main="H3 vs H4 highMACC",ylim=c(0.1,0.6),xlim=c(0.1,0.6))
+dev.off()
+```
+
+# H3 vs H4: hypo-accessible nucleosomes
+```{r lowMACC}
+pdf("H3vsH4_lowMACCNucs_overlap.pdf")
+makeVennDiagram(Peaks = list(H3_lowMACC, H4_lowMACC),
+                NameOfPeaks=c("H3", "H4"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 10000,
+                connectedPeaks = "merge",fill=c("palegreen3", "orchid3"),
+                scaled=TRUE, euler.d=TRUE)
+dev.off()
+
+lowMACC_nucs <- findOverlaps(H3_lowMACC, H4_lowMACC , minoverlap = 100)
+corr_lowMACC <- cbind(H3_lowMACC$nucMACC[lowMACC_nucs@from],H4_lowMACC$nucMACC[lowMACC_nucs@to])
+
+pdf("H3vsH4_lowMACCNucs-nucMACC_corr.pdf")
+heatscatter(corr_lowMACC[,1],corr_lowMACC[,2],cor=T,xlab="H3",ylab = "H4",
+            method = "pearson", main="H3 vs H4 lowMACC",ylim=c(-0.4,-0.25),xlim=c(-0.4,-0.25))
+dev.off()
+```
+
+
+```{r save R data}
+save.image(file = "H3vsH4.RData")
+```
+

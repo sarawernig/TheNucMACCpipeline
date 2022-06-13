@@ -1,0 +1,549 @@
+---
+title: "H4 special nucs"
+author: "Sara Wernig-Zorc"
+date: "03/12/2021"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	error = FALSE,
+	warning = FALSE)
+knitr::opts_knit$set(root.dir = "nextflow_out/plots")
+```
+
+```{r load RData}
+load(file = "/MNase-H4.RData")
+```
+
+### Load libraries
+```{r libraries, include=FALSE}
+library(dplyr)
+library(LSD)
+library(corrr)
+library(GenomicRanges)
+library(rtracklayer)
+library(ChIPseeker)
+library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
+library(GenomicFeatures)
+library(ggplot2)
+library(clusterProfiler)
+library(edgeR)
+library(venneuler)
+library(ChIPpeakAnno)
+library(enrichplot)
+library(gtools)
+library(corrplot)
+library(reshape2)
+```
+
+# Mono- nucleosomes
+## Mono-nucs: % of hypo-/hyper- accessible nucs
+```{r import mono-nucs}
+mononucs <- read.table("path/to/RUN/09_nucMACC/nucMACC_result_table.tsv",header=T,sep="\t") 
+
+lowMACC_nucs <- read.table("path/to/RUN/09_nucMACC/hypoAcc_monoNucs.bed",header=F,sep="\t") 
+colnames(lowMACC_nucs) <- cbind("Chr","Start","End","NucID","NucMACC","Strand")
+
+highMACC_nucs <- read.table("path/to/RUN/09_nucMACC/hyperAcc_monoNucs.bed",header=F,sep="\t")
+colnames(highMACC_nucs) <- cbind("Chr","Start","End","NucID","NucMACC","Strand")
+
+mono_nucs <- GRanges(mononucs)
+
+nrow(lowMACC_nucs) / nrow(mononucs) *100
+nrow(lowMACC_nucs)
+
+nrow(highMACC_nucs) / nrow(mononucs) *100
+nrow(highMACC_nucs)
+
+c.low.access <- GRanges(lowMACC_nucs)
+c.high.access <- GRanges(highMACC_nucs)
+```
+
+## Mono-nucs: Feature distribution
+```{r mononucs: plot annotation}
+db <- TxDb.Dmelanogaster.UCSC.dm3.ensGene
+promoter <- getPromoters(TxDb=db, upstream=1500, downstream=350)
+
+mono.nucs <- list(all_nucMACC=mono_nucs,
+                  low_nucMACC=c.low.access,
+                  high_nucMACC=c.high.access)
+mono.nucs.anno <- lapply(mono.nucs, annotatePeak, TxDb=db, tssRegion=c(-1000, 300), verbose=FALSE)
+
+#pdf("Mono-nucs_low-high-nucMACC.pdf")
+plotAnnoBar(mono.nucs.anno)
+#dev.off()
+
+print("Genomic Annotation Summary: all monoNucs")
+mono.nucs.anno$all_nucMACC 
+print("Genomic Annotation Summary: lowMACC monoNucs")
+mono.nucs.anno$low_nucMACC
+print("Genomic Annotation Summary: highMACC monoNucs")
+mono.nucs.anno$high_nucMACC
+```
+
+
+## Sub-nucs: % of hypo-/hyper- stable nucs
+```{r import sub-nucs}
+subNucs <- read.table("path/to/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=T,sep="\t") 
+
+highMACC_subNucs <- read.table(path/to/RUN/10_sub-nucMACC/nonCanonical_subNucs.bed",header=F,sep="\t") 
+colnames(highMACC_subNucs) <- cbind("Chr","Start","End","NucID","NucMACC","Strand")
+
+lowMACC_subNucs <- read.table("path/to/RUN/10_sub-nucMACC/unStable_subNucs.bed",header=F,sep="\t")
+colnames(lowMACC_subNucs) <- cbind("Chr","Start","End","NucID","NucMACC","Strand")
+
+sub_nucs <- GRanges(subNucs)
+
+print("all subNucs")
+nrow(subNucs)
+
+print("lowMACC subNucs")
+nrow(lowMACC_subNucs) / nrow(subNucs)*100
+nrow(lowMACC_subNucs) 
+
+print("highMACC subNucs")
+nrow(highMACC_subNucs) / nrow(subNucs)*100
+nrow(highMACC_subNucs) 
+
+f.low.stability <- GRanges(lowMACC_subNucs) #
+f.high.stability <- GRanges(highMACC_subNucs) #
+
+db <- TxDb.Dmelanogaster.UCSC.dm3.ensGene
+sub.nucs <- list(subNucs=sub_nucs,
+                 fragNucs=f.low.stability,
+                 altNucs=f.high.stability)
+               
+sub.nucs.anno <- lapply(sub.nucs, annotatePeak, TxDb=db,  tssRegion=c(-1000, 300), verbose=FALSE)
+#pdf("Sub-nucs_low-high-nucMACC.pdf")
+plotAnnoBar(sub.nucs.anno)
+#dev.off()
+
+print("Genomic Annotation Summary: unique subNucs")
+sub.nucs.anno$subNucs 
+print("Genomic Annotation Summary: non-canonical subNucs")
+sub.nucs.anno$altNucs
+print("Genomic Annotation Summary: un-stable/fragile subNucs")
+sub.nucs.anno$fragNucs
+```
+
+```{r expressed genes w/ or w/o FN}
+FN_exp <-  read.table("path/to/RUN/10_sub-nucMACC/Expressed_genes_TSS_with_FN.bed",header=F,sep="\t")
+colnames(FN_exp) <- cbind("Chr","Start","End","GeneID","NucMACC")
+noFN_exp <- read.table("path/to/RUN/10_sub-nucMACC/Expressed_genes_TSS_withOut_FN.bed",header=F,sep="\t")
+colnames(noFN_exp) <- cbind("Chr","Start","End","GeneID","NucMACC")
+
+all_expressed <- read.table("path/to/project_folder/results/RNA-seq/genes/Expressed_genes.bed",header=F,sep="\t")
+colnames(all_expressed) <- cbind("Chr","Start","End","GeneID","RPKM")
+
+FN.exp <- GRanges(FN_exp) #1418 
+noFN.exp <- GRanges(noFN_exp) #6010
+
+db <- TxDb.Dmelanogaster.UCSC.dm3.ensGene
+
+FN.nucs <- list(Exp.with.FN=FN.exp,
+                Exp.without.FN=noFN.exp)
+FN.anno <- lapply(FN.nucs, annotatePeak, TxDb=db,  tssRegion=c(-1000, 300), verbose=FALSE)
+
+data <- list()
+data$withFN <- as.data.frame(FN.nucs$Exp.with.FN)
+data$withoutFN <- as.data.frame(FN.nucs$Exp.without.FN)
+
+gene_conversion_FN <- bitr(data$withFN$GeneID, fromType="FLYBASE", toType=c("ENTREZID","SYMBOL"), OrgDb="org.Dm.eg.db")
+gene_conversion_noFN <- bitr(data$withoutFN$GeneID, fromType="FLYBASE", toType=c("ENTREZID", "SYMBOL"), OrgDb="org.Dm.eg.db")
+
+gene_list <- list()
+gene_list$withFN  <- gene_conversion_FN$SYMBOL
+gene_list$withoutFN  <- gene_conversion_noFN$SYMBOL
+
+allExpressedGenes <- all_expressed$GeneID
+
+FN_pathways <- compareCluster(geneCluster = gene_list, fun = enrichGO, OrgDb ="org.Dm.eg.db", keyType = "SYMBOL", ont = "BP", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.1, universe = all_expressed)
+
+library(enrichplot)
+edo <- pairwise_termsim(FN_pathways)
+p1 <- treeplot(edo,showCategory=30, offset = 35,nCluster=7,color = "p.adjust",fontsize=4,legend_n=5)
+ggsave("ExpressedGenes_withOrWithoutFN_pathwayEnrich_treePlot.pdf",p1, width=4, height=3, units="in", scale=3)
+
+pathways_compare <- as.data.frame(FN_pathways)
+write.table(pathways_compare,file="ExpressedGenes_withOrWithoutFN_pathwayEnrich_GO-BP.csv",quote=FALSE,row.names = FALSE,sep="\t")
+
+###### with FN ONLY #####
+withFN_enriched  <- enrichGO(gene = gene_list$withFN,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.05)
+
+
+edo2 <- pairwise_termsim(withFN_enriched)
+p2 <- treeplot(edo2,showCategory=30,nCluster=7,color = "p.adjust",fontsize=4, offset = 8,xlim=c(0,20))
+ggsave("ExpressedGenes_withFN_pathwayEnrich_treePlot.pdf",p2, width=4, height=3, units="in", scale=3)
+
+####### without FN only ######
+withoutFN_enriched  <- enrichGO(gene = gene_list$withoutFN,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.05)
+
+
+edo2 <- pairwise_termsim(withoutFN_enriched)
+p3 <- treeplot(edo2,showCategory=30,nCluster=7,color = "p.adjust",fontsize=4, offset = 8,xlim=c(0,20))
+ggsave("ExpressedGenes_withoutFN_pathwayEnrich_treePlot.pdf",p3, width=4, height=3, units="in", scale=3)
+
+
+##################################################
+dotplot <- dotplot(FN_pathways,showCategory=30) + 
+  ggtitle("Expressed gene w/ or w/o un-stable nucleosome at TSS") + 
+  theme(axis.text=element_text(size=20),
+        axis.title=element_text(size=20,face="bold")) + 
+  theme(legend.text=element_text(size=20))
+
+
+ggsave("ExpressedGenes_withOrWithoutFN_pathwayEnrich_GO-BP.pdf",dotplot, width=5, height=10, units="in", scale=3)
+
+
+########
+pdf("ExpressedGenes_withOrWithoutFN_pathwayEnrich_GO-MF.pdf")
+par(mfrow=c(2,1))
+FN_pathways <- compareCluster(geneCluster = gene_list, fun = enrichGO, OrgDb ="org.Dm.eg.db", keyType = "SYMBOL", ont = "MF", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05, universe = all_expressed)
+edo <- pairwise_termsim(FN_pathways)
+dotplot(FN_pathways) + ggtitle("Expressed gene w/ or w/o un-stable nucleosome at TSS")
+emapplot(edo) + ggtitle("Expressed gene w/ or w/o un-stable nucleosome at TSS")
+dev.off()
+
+pdf("ExpressedGenes_withOrWithoutFN_pathwayEnrich_GO-CC.pdf")
+par(mfrow=c(2,1))
+FN_pathways <- compareCluster(geneCluster = gene_list, fun = enrichGO, OrgDb ="org.Dm.eg.db", keyType = "SYMBOL", ont = "CC", pAdjustMethod = "BH", pvalueCutoff = 0.01, qvalueCutoff = 0.05, universe = all_expressed)
+dotplot(FN_pathways) +  ggtitle("Expressed gene w/ or w/o un-stable nucleosome at TSS")
+edo <- pairwise_termsim(FN_pathways)
+emapplot(edo) + ggtitle("Expressed gene w/ or w/o un-stable nucleosome at TSS")
+dev.off()
+
+```
+
+## Mono-nucs: GO pathway enrichment analysis
+```{r mono-nucs: Enrichment analysis}
+################## high nucMACC mono-nucs ################## 
+data <- as.data.frame(mono.nucs.anno$high_nucMACC)
+gene_conversion <- bitr(data$geneId, fromType="FLYBASE", toType="SYMBOL", OrgDb="org.Dm.eg.db")
+gene_symbols <- gene_conversion$SYMBOL
+
+enrichedTerms_BP <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.05)
+
+enrichedTerms_MF <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "MF", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.05)
+
+pdf("high-mono-nucMACC_Molecular-function.pdf")
+dotplot(enrichedTerms_MF, showCategory=10)
+dev.off()
+
+pdf("high-mono-nucMACC_Biological-process.pdf")
+dotplot(enrichedTerms_BP, showCategory=10)
+dev.off()
+
+################## low nucMACC mono-nucs ################## 
+
+data <- as.data.frame(mono.nucs.anno$low_nucMACC)
+gene_conversion <- bitr(data$geneId, fromType="FLYBASE", toType="SYMBOL", OrgDb="org.Dm.eg.db")
+gene_symbols <- gene_conversion$SYMBOL
+
+enrichedTerms_BP <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+enrichedTerms_MF <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "MF", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+pdf("low-mono-nucMACC_Molecular-function.pdf")
+dotplot(enrichedTerms_MF, showCategory=10)
+dev.off()
+
+pdf("low-mono-nucMACC_Biological-process.pdf")
+dotplot(enrichedTerms_BP, showCategory=10)
+dev.off()
+```
+
+## Sub-nucs: GO enrichment analysis
+### low sub-nucMACC - Fragile (hypo-stability) nucleosomes
+
+```{r Fragile sub-nucs which do not overlap with mono nucs}
+############# ANNOTATION AND PATHWAY ENRICHMENT
+db <- TxDb.Dmelanogaster.UCSC.dm3.ensGene
+promoter <- getPromoters(TxDb=db, upstream=1500, downstream=300)
+
+data <- as.data.frame(sub.nucs.anno$fragNucs)
+gene_conversion <- bitr(data$geneId, fromType="FLYBASE", toType="SYMBOL", OrgDb="org.Dm.eg.db")
+gene_symbols <- gene_conversion$SYMBOL
+
+enrichedTerms_BP <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+enrichedTerms_MF <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "MF", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+#pdf("S2_H4-FragileNucs_enriched-MolFuction.pdf")
+dotplot(enrichedTerms_MF, showCategory=10)
+#dev.off()
+
+#pdf("S2_H4-FragileNucs_enriched-BioProcess.pdf")
+dotplot(enrichedTerms_BP, showCategory=10)
+#dev.off()
+
+write.table(data, file="fragNucs_annotated.csv",sep="\t",quote=FALSE)
+```
+
+## high sub-nucMACC - non-canonical structres (Group 2)
+```{r Group2: low access. sub nucs which do not overlap with mono nucs}
+############# ANNOTATION AND PATHWAY ENRICHMENT
+data <- as.data.frame(sub.nucs.anno$altNucs)
+gene_conversion <- bitr(data$geneId, fromType="FLYBASE", toType="SYMBOL", OrgDb="org.Dm.eg.db")
+gene_symbols <- gene_conversion$SYMBOL
+
+enrichedTerms_BP <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "BP", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+enrichedTerms_MF <- enrichGO(gene = gene_symbols,
+                OrgDb          = org.Dm.eg.db,
+                keyType        = "SYMBOL",
+                ont            = "MF", # BP, MF, CC or ALL
+                pAdjustMethod  = "BH",
+                pvalueCutoff   = 0.01,
+                qvalueCutoff   = 0.01)
+
+pdf("S2_H4-AltNucs_enriched-MolFuction.pdf")
+dotplot(enrichedTerms_MF, showCategory=10)
+dev.off()
+
+pdf("S2_H4-AltNucs_enriched-BioProcess.pdf")
+dotplot(enrichedTerms_BP, showCategory=10)
+dev.off()
+
+write.table(data, file="altNucs_annotated.csv",sep="\t",quote=FALSE)
+```
+
+## nucMACC vs. Expression correlation
+```{r nucs: corr with expression, echo=TRUE}
+readCounts <- read.table("/Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/readCount/readCount_Ensembl_exon.txt",header=TRUE)
+
+x <- DGEList(counts=readCounts[7:8])      #Makes a list for edgeR
+normRead <- rpkm(x,gene.length = readCounts$Length)
+expression <- rowMeans(normRead)
+average <- cbind(readCounts,expression)
+
+colnames(readCounts)[7] <- "rep1"
+colnames(readCounts)[8] <- "rep2"
+
+RPKM <- na.omit(average) 
+
+#Cutoff based on RPKM density
+#pdf("RPKM_cut-off.pdf")
+plot(density(log2(RPKM$expression)))
+abline(v=1,col="blue",lwd=4)
+#dev.off()
+
+expressed <- filter(RPKM, expression >= 1)
+silent <- filter(RPKM, expression < 1)
+
+####################################
+low_monoNucs <- as.data.frame(mono.nucs.anno$low_nucMACC)
+high_monoNucs <- as.data.frame(mono.nucs.anno$high_nucMACC)
+
+unique_subNucs <- as.data.frame(sub.nucs.anno$unique_subNucs)
+fragNucs <- as.data.frame(sub.nucs.anno$fragNucs)
+altNucs <- as.data.frame(sub.nucs.anno$altNucs)
+
+low_monoNucs.in.promoter <- filter(low_monoNucs,  annotation == "Promoter")
+low_monoNucs.not.promoter <- filter(low_monoNucs,  annotation != "Promoter")
+high_monoNucs.in.promoter <- filter(high_monoNucs,  annotation == "Promoter")
+high_monoNucs.not.promoter <- filter(high_monoNucs,  annotation != "Promoter")
+
+fragNucs.in.promoter <- filter(fragNucs,  annotation == "Promoter")
+fragNucs.not.promoter <- filter(fragNucs,  annotation != "Promoter")
+nrow(fragNucs.in.promoter)
+nrow(fragNucs.not.promoter)
+
+altNucs.in.promoter <- filter(altNucs,  annotation == "Promoter")
+altNucs.not.promoter <- filter(altNucs,  annotation != "Promoter")
+nrow(altNucs.in.promoter)
+nrow(altNucs.not.promoter)
+#
+nucMACC.high.rpkm <- merge(high_monoNucs, RPKM, by.x = "geneId", by.y = "Geneid")
+nucMACC.low.rpkm <- merge(low_monoNucs, RPKM, by.x = "geneId", by.y = "Geneid")
+
+fragNucs.rpkm <- merge(fragNucs, RPKM, by.x = "geneId", by.y = "Geneid")
+altNucs.rpkm <- merge(altNucs, RPKM, by.x = "geneId", by.y = "Geneid")
+
+####### ------ ########
+Exp.with.FN.rpkm <- merge(as.data.frame(FN.anno$Exp.with.FN), RPKM, by.x = "geneId", by.y = "Geneid")
+Exp.without.FN.rpkm <- merge(as.data.frame(FN.anno$Exp.without.FN), RPKM, by.x = "geneId", by.y = "Geneid")
+####### ------ ########
+
+fragNucs.promoter.rpkm <- merge(fragNucs.in.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+fragNucs.Not.promoter.rpkm <- merge(fragNucs.not.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+altNucs.promoter.rpkm <- merge(altNucs.in.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+altNucs.Not.promoter.rpkm <- merge(altNucs.not.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+
+nucMACC.high.promoter.rpkm <- merge(high_monoNucs.in.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+nucMACC.high.Not.promoter.rpkm <- merge(high_monoNucs.not.promoter, RPKM, by.x = "geneId", by.y = "Geneid")
+nucMACC.low.promoter.rpkm <- merge(low_monoNucs.in.promoter , RPKM, by.x = "geneId", by.y = "Geneid")
+nucMACC.low.Not.promoter.rpkm <- merge(low_monoNucs.not.promoter , RPKM, by.x = "geneId", by.y = "Geneid")
+
+#subNucs
+fragNucs.rpkm.promoter.expressed <- filter(fragNucs.promoter.rpkm,expression >= 1)
+fragNucs.rpkm.promoter.silent <- filter(fragNucs.promoter.rpkm, expression < 1)
+fragNucs.rpkm.not.promoter.expressed <- filter(fragNucs.Not.promoter.rpkm,expression >= 1)
+fragNucs.rpkm.not.promoter.silent <- filter(fragNucs.Not.promoter.rpkm, expression < 1)
+#monoNucs
+nucMACC.high.rpkm.expressed <- filter(nucMACC.high.rpkm,expression >= 1)
+nucMACC.high.rpkm.silent <- filter(nucMACC.high.rpkm,expression < 1)
+nucMACC.low.rpkm.expressed <- filter(nucMACC.low.rpkm,expression >= 1)
+nucMACC.low.rpkm.silent <- filter(nucMACC.low.rpkm, expression < 1)
+
+nucMACC.high.rpkm.other.expressed <- filter(nucMACC.high.Not.promoter.rpkm,expression >= 1)
+nucMACC.high.rpkm.other.silent <- filter(nucMACC.high.Not.promoter.rpkm,expression < 1)
+nucMACC.high.rpkm.pro.expressed <- filter(nucMACC.high.promoter.rpkm,expression >= 1)
+nucMACC.high.rpkm.pro.silent <- filter(nucMACC.high.promoter.rpkm,expression < 1)
+
+nucMACC.low.rpkm.other.expressed <- filter(nucMACC.low.Not.promoter.rpkm,expression >= 1)
+nucMACC.low.rpkm.other.silent <- filter(nucMACC.low.Not.promoter.rpkm, expression < 1)
+nucMACC.low.rpkm.pro.expressed <- filter(nucMACC.low.promoter.rpkm,expression >= 1)
+nucMACC.low.rpkm.pro.silent <- filter(nucMACC.low.promoter.rpkm, expression < 1)
+
+
+
+sub_expressed <- cbind("Promoter_fragNucs"=nrow(fragNucs.rpkm.promoter.expressed)/nrow(fragNucs.in.promoter)*100,
+                      "Intergenic_fragNucs"=nrow(fragNucs.rpkm.not.promoter.expressed)/nrow(fragNucs.not.promoter)*100)
+                      
+mono_expressed <- cbind("monoNucs_high"=nrow(nucMACC.high.rpkm.expressed)/nrow(high_monoNucs)*100,
+                      "monoNucs_low"=nrow(nucMACC.low.rpkm.expressed)/nrow(low_monoNucs)*100)
+
+sub_silent <- cbind("Promoter_fragNucs"=nrow(fragNucs.rpkm.promoter.silent)/nrow(fragNucs.in.promoter)*100,
+                   "Intergenic_fragNucs"=nrow(fragNucs.rpkm.not.promoter.silent)/nrow(fragNucs.not.promoter)*100)
+
+mono_silent <- cbind("monoNucs_high"=nrow(nucMACC.high.rpkm.silent)/nrow(high_monoNucs)*100,
+                   "monoNucs_low"=nrow(nucMACC.low.rpkm.silent)/nrow(low_monoNucs)*100)
+
+numbers_sub <- rbind("expressed" = sub_expressed, "silent" = sub_silent)
+rownames(numbers_sub) <- c("expressed","silent")
+
+numbers_mono <- rbind("expressed" = mono_expressed, "silent" = mono_silent)
+rownames(numbers_mono) <- c("expressed","silent")
+
+mono_pro_expressed <- cbind("highMACC_other"=nrow(nucMACC.high.rpkm.other.expressed)/nrow(nucMACC.high.Not.promoter.rpkm)*100,
+                            "highMACC_promoter"=nrow(nucMACC.high.rpkm.pro.expressed)/nrow(nucMACC.high.promoter.rpkm)*100,
+                            "lowMACC_other"=nrow(nucMACC.low.rpkm.other.expressed)/nrow(nucMACC.low.Not.promoter.rpkm)*100,
+                            "lowMACC_promoter"=nrow(nucMACC.low.rpkm.pro.expressed)/nrow(nucMACC.low.promoter.rpkm)*100)
+mono_pro_silent <- cbind("highMACC_other"=nrow(nucMACC.high.rpkm.other.silent)/nrow(nucMACC.high.Not.promoter.rpkm)*100,
+                            "highMACC_promoter"=nrow(nucMACC.high.rpkm.pro.silent)/nrow(nucMACC.high.promoter.rpkm)*100,
+                            "lowMACC_other"=nrow(nucMACC.low.rpkm.other.silent)/nrow(nucMACC.low.promoter.rpkm)*100,
+                            "lowMACC_promoter"=nrow(nucMACC.low.rpkm.pro.silent)/nrow(nucMACC.low.Not.promoter.rpkm)*100)
+
+numbers_pro_mono <- rbind("expressed" = mono_pro_expressed, "silent" = mono_pro_silent)
+rownames(numbers_pro_mono) <- c("expressed","silent")
+
+```
+
+### Violin plot
+```{r boxplot}
+expression_data <- cbind(log2(nucMACC.high.rpkm$expression)+1,log2(nucMACC.low.rpkm$expression)+1,log2(fragNucs.rpkm$expression)+1,log2(altNucs.rpkm$expression)+1)
+
+colnames(expression_data) <- c("hyperAccess","hypoAccess","unStabile","nonCanonical")
+
+expr.reshape <- melt(expression_data)
+boxplot <- ggplot(expr.reshape,aes(x=Var2,y=value,fill=Var2))
+
+pdf("MonoNucs_hypo-hyper-access_corrExpr_boxplot.pdf")
+boxplot + geom_violin(scale="area",trim=FALSE) +
+  scale_y_continuous(limits = c(-10, 15)) + scale_fill_brewer(palette="YiGn") + geom_boxplot(width=0.1)
+dev.off()
+
+#FN sub-division
+FN_data <- cbind(log2(fragNucs.promoter.rpkm$expression)+1,log2(fragNucs.Not.promoter.rpkm$expression)+1)
+colnames(FN_data) <- c("promoter","other")
+
+FN.reshape <- melt(FN_data)
+FN.boxplot <- ggplot(FN.reshape,aes(x=Var2,y=value,fill=Var2))
+
+pdf("SubNucs_hypo-stability_corrExpr_boxplot.pdf")
+FN.boxplot + geom_violin(scale="area",trim=FALSE) +
+  scale_y_continuous(limits = c(-10, 15)) + scale_fill_brewer(palette="RdPu") + geom_boxplot(width=0.1)
+dev.off()
+
+
+###############################################
+#Expressed genes with FN at TSS or without FN at TSS
+ExpFN_data <- cbind(log2(Exp.with.FN.rpkm$expression)+1,log2(Exp.without.FN.rpkm$expression)+1)
+colnames(ExpFN_data) <- c("Expressed genes w/ FN","Expressed genes w/o FN")
+
+ExpFN.reshape <- melt(ExpFN_data)
+ExpFN.boxplot <- ggplot(ExpFN.reshape,aes(x=Var2,y=value,fill=Var2))
+
+pdf("ExpressedGenes_with-Or-without-FN_corrExpr_boxplot.pdf")
+ExpFN.boxplot + geom_violin(scale="area",trim=FALSE) +
+  scale_y_continuous(limits = c(-10, 15)) + scale_fill_manual(values=c("#2166AC","#D2ac1e")) + geom_boxplot(width=0.1)
+dev.off()
+
+###############################################
+
+altNuc sub-division
+altNucs_data <- cbind(log2(altNucs.promoter.rpkm$expression)+1,log2(altNucs.Not.promoter.rpkm$expression)+1)
+colnames(altNucs_data) <- c("promoter","other")
+
+AN.reshape <- melt(altNucs_data)
+AN.boxplot <- ggplot(AN.reshape,aes(x=Var2,y=value,fill=Var2))
+
+pdf("SubNucs_hyper-stability_corrExpr_boxplot.pdf")
+AN.boxplot + geom_violin(scale="area",trim=FALSE) +
+  scale_y_continuous(limits = c(-10, 15)) + scale_fill_brewer(palette="RdPu") + geom_boxplot(width=0.1)
+dev.off()
+
+```
+
+```{r save R data}
+save.image(file = "MNase-H4.RData")
+```
+
+
+

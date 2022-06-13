@@ -1,0 +1,296 @@
+---
+title: "H3: nucMACC 2 vs 4 MNase titrations"
+author: "Sara Wernig-Zorc"
+date: "20/09/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE, 
+                      error = FALSE, 
+                      tidy = TRUE)  
+
+knitr::opts_knit$set(root.dir = "/path/to/project_folder/results/DANPOS/ChIP-H3/Pipeline_robustness/")
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.width=5, fig.height=5) 
+```
+
+```{r libraries, include=FALSE}
+library(LSD)
+library(corrr)
+library(GenomicRanges)
+library(rtracklayer)
+library(org.Dm.eg.db)
+library(ChIPseeker)
+library(dplyr)
+library(ChIPpeakAnno)
+library(venneuler)
+library(corrplot)
+```
+
+# Mono-nucleosomes
+```{r mono-nucs input, include=FALSE}
+nucReadCounts_all <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/pooled_samples/sub-sampling/genomeSizeNorm-q0/pooled/nucMACC/0.5/nucMACC_scores.csv",header=TRUE) 
+nucReadCounts_all <- nucReadCounts_all %>% filter(nucReadCounts_all$nucMACC < 10)
+
+nucReadCounts_1.5U_6.25U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/1.5U+6.25U/pooled/nucMACC/nucMACC_scores.csv",header=TRUE) 
+nucReadCounts_1.5U_6.25U <- nucReadCounts_1.5U_6.25U %>% filter(nucReadCounts_1.5U_6.25U$nucMACC < 10)
+nucReadCounts_1.5U_25U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/1.5U+25U/genomeSizeNorm-q0/pooled/nucMACC/nucMACC_scores.csv",header=TRUE)
+nucReadCounts_1.5U_25U <- nucReadCounts_1.5U_25U %>% filter(nucReadCounts_1.5U_25U$nucMACC < 10)
+nucReadCounts_1.5U_100U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/1.5U+100U/pooled/nucMACC/nucMACC_scores.csv",header=TRUE) 
+nucReadCounts_1.5U_100U <- nucReadCounts_1.5U_100U %>% filter(nucReadCounts_1.5U_100U$nucMACC < 10)
+nucReadCounts_6.25U_25U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/6.25U+25U/pooled/nucMACC/nucMACC_scores.csv",header=TRUE) 
+nucReadCounts_6.25U_25U <- nucReadCounts_6.25U_25U %>% filter(nucReadCounts_6.25U_25U$nucMACC < 10)
+nucReadCounts_6.25U_100U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/6.25U+100U/genomeSizeNorm-q0/pooled/nucMACC/nucMACC_scores.csv",header=TRUE)
+nucReadCounts_6.25U_100U <- nucReadCounts_6.25U_100U %>% filter(nucReadCounts_6.25U_100U$nucMACC < 10)
+nucReadCounts_25U_100U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len140-200/25U+100U/pooled/nucMACC/nucMACC_scores.csv",header=TRUE)
+nucReadCounts_25U_100U <- nucReadCounts_25U_100U %>% filter(nucReadCounts_25U_100U$nucMACC < 10)
+```
+
+```{r mono-nucs: GRanges, include=FALSE}
+mono_pooled <- GRanges(nucReadCounts_all)
+mono_1.5U_6.25U <- GRanges(nucReadCounts_1.5U_6.25U)
+mono_1.5U_25U <- GRanges(nucReadCounts_1.5U_25U)
+mono_1.5U_100U <- GRanges(nucReadCounts_1.5U_100U)
+mono_6.25U_25U <- GRanges(nucReadCounts_6.25U_25U)
+mono_6.25U_100U <- GRanges(nucReadCounts_6.25U_100U)
+mono_25U_100U <- GRanges(nucReadCounts_25U_100U)
+```
+
+## 2 titrations vs. 4 titrations (50% seq. depth)
+```{r mono-nucs: overlaps}
+mono_1.5U_6.25U.vs.pooled <- findOverlaps(mono_1.5U_6.25U,mono_pooled, minoverlap = 100)
+corr_mono_1.5U_6.25U.vs.pooled <- cbind(mono_1.5U_6.25U$nucMACC[mono_1.5U_6.25U.vs.pooled@from],mono_pooled$nucMACC[mono_1.5U_6.25U.vs.pooled@to])
+
+mono_1.5U_25U.vs.pooled  <- findOverlaps(mono_1.5U_25U,mono_pooled, minoverlap = 100)
+corr_mono_1.5U_25U.vs.pooled <- cbind(mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.pooled@from],mono_pooled$nucMACC[mono_1.5U_25U.vs.pooled@to])
+
+mono_1.5U_100U.vs.pooled <- findOverlaps(mono_1.5U_100U,mono_pooled , minoverlap = 100)
+corr_mono_1.5U_100U.vs.pooled <- cbind(mono_1.5U_100U$nucMACC[mono_1.5U_100U.vs.pooled@from],mono_pooled$nucMACC[mono_1.5U_100U.vs.pooled@to])
+
+mono_6.25U_25U.vs.pooled <- findOverlaps(mono_6.25U_25U,mono_pooled , minoverlap = 100)
+corr_mono_6.25U_25U.vs.pooled <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.pooled@from],mono_pooled$nucMACC[mono_6.25U_25U.vs.pooled@to])
+
+mono_6.25U_100U.vs.pooled <- findOverlaps(mono_6.25U_100U,mono_pooled , minoverlap = 100)
+corr_mono_6.25U_100U.vs.pooled <- cbind(mono_6.25U_100U$nucMACC[mono_6.25U_100U.vs.pooled@from],mono_pooled$nucMACC[mono_6.25U_100U.vs.pooled@to])
+
+mono_25U_100U.vs.pooled <- findOverlaps(mono_25U_100U,mono_pooled , minoverlap = 100)
+corr_mono_25U_100U.vs.pooled <- cbind(mono_25U_100U$nucMACC[mono_25U_100U.vs.pooled@from],mono_pooled$nucMACC[mono_25U_100U.vs.pooled@to])
+
+#pdf("Mono-nucs_2vs4titrations_allCombinations_overlap.pdf")
+par(mfrow=c(3,2))
+makeVennDiagram(Peaks = list(mono_1.5U_6.25U,mono_pooled), main="1.5U+6.25U vs. pooled",
+                NameOfPeaks=c("1.5U+6.25U", "pooled"), 
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+makeVennDiagram(Peaks = list(mono_1.5U_25U,mono_pooled), main="1.5U+25U vs. pooled",
+                NameOfPeaks=c("1.5U+25U", "pooled"), 
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+makeVennDiagram(Peaks = list(mono_1.5U_100U,mono_pooled), main="1.5U+100U vs. pooled",
+                NameOfPeaks=c("1.5U+100U", "pooled"), 
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+makeVennDiagram(Peaks = list(mono_6.25U_25U,mono_pooled),main="6.25U+25U vs. pooled",
+                NameOfPeaks=c("6.25U+25U","pooled"), minoverlap = 100,
+                ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+makeVennDiagram(Peaks = list(mono_6.25U_100U,mono_pooled),main="6.25U+100U vs. pooled",
+                NameOfPeaks=c("6.25U+100U","pooled"), minoverlap = 100,
+                ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+makeVennDiagram(Peaks = list(mono_25U_100U,mono_pooled), main="25U+100U vs. pooled",
+                NameOfPeaks=c("25U+100U", "pooled"), 
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE,euler.d=TRUE,fill=c("turquoise2", "orchid3"))
+#dev.off()
+
+```
+
+```{r mono-nucs: nucMACC scores, fig.height=5, fig.width=5}
+#pdf("Mono-nucs_2vs4titrations_allCombinations_nucMACC-corr.pdf")
+par(mfrow=c(3,2))
+heatscatter(corr_mono_1.5U_6.25U.vs.pooled[,1],corr_mono_1.5U_6.25U.vs.pooled[,2],cor=T,xlab="1.5U+6.25U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #-0.3632519
+heatscatter(corr_mono_1.5U_25U.vs.pooled[,1],corr_mono_1.5U_25U.vs.pooled[,2],cor=T,xlab="1.5U+25U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #0.8645773
+heatscatter(corr_mono_1.5U_100U.vs.pooled[,1],corr_mono_1.5U_100U.vs.pooled[,2],cor=T,xlab="1.5U+100U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #0.4101771
+heatscatter(corr_mono_6.25U_25U.vs.pooled[,1],corr_mono_6.25U_25U.vs.pooled[,2],cor=T,xlab="6.25U+25U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #0.7191197
+heatscatter(corr_mono_6.25U_100U.vs.pooled[,1],corr_mono_6.25U_100U.vs.pooled[,2],cor=T,xlab="6.25U+100U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #0.8138173
+heatscatter(corr_mono_25U_100U.vs.pooled[,1],corr_mono_25U_100U.vs.pooled[,2],cor=T,xlab="25U+100U",ylab = "pooled",method = "pearson", xlim=c(-5,10),ylim=c(-5,10)) #0.3437016
+#dev.off()
+```
+
+## 2 titrations vs. 2 titrations: all combinations 
+```{r mono-nucs: all vs 1.5U_25U correlations}
+mono_1.5U_6.25U.vs.1.5U_25U <- findOverlaps(mono_1.5U_6.25U,mono_1.5U_25U, minoverlap = 100)
+corr_mono_1.5U_6.25U.vs.1.5U_25U <- cbind(mono_1.5U_6.25U$nucMACC[mono_1.5U_6.25U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_1.5U_6.25U.vs.1.5U_25U@to])
+cor(corr_mono_1.5U_6.25U.vs.1.5U_25U[,1],corr_mono_1.5U_6.25U.vs.1.5U_25U[,2]) #-0.2887756
+
+mono_1.5U_25U.vs.1.5U_25U  <- findOverlaps(mono_1.5U_25U,mono_1.5U_25U, minoverlap = 100)
+corr_mono_1.5U_25U.vs.1.5U_25U <- cbind(mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.1.5U_25U@to])
+cor(corr_mono_1.5U_25U.vs.1.5U_25U[,1],corr_mono_1.5U_25U.vs.1.5U_25U[,2]) #1
+
+mono_1.5U_100U.vs.1.5U_25U <- findOverlaps(mono_1.5U_100U,mono_1.5U_25U , minoverlap = 100)
+corr_mono_1.5U_100U.vs.1.5U_25U <- cbind(mono_1.5U_100U$nucMACC[mono_1.5U_100U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_1.5U_100U.vs.1.5U_25U@to])
+cor(corr_mono_1.5U_100U.vs.1.5U_25U[,1],corr_mono_1.5U_100U.vs.1.5U_25U[,2]) #0.3284976
+
+mono_6.25U_25U.vs.1.5U_25U <- findOverlaps(mono_6.25U_25U,mono_1.5U_25U , minoverlap = 100)
+corr_mono_6.25U_25U.vs.1.5U_25U <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_6.25U_25U.vs.1.5U_25U@to])
+cor(corr_mono_6.25U_25U.vs.1.5U_25U[,1],corr_mono_6.25U_25U.vs.1.5U_25U[,2]) #0.7245372
+
+mono_6.25U_100U.vs.1.5U_25U <- findOverlaps(mono_6.25U_100U,mono_1.5U_25U , minoverlap = 100)
+corr_mono_6.25U_100U.vs.1.5U_25U <- cbind(mono_6.25U_100U$nucMACC[mono_6.25U_100U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_6.25U_100U.vs.1.5U_25U@to])
+cor(corr_mono_6.25U_100U.vs.1.5U_25U[,1],corr_mono_6.25U_100U.vs.1.5U_25U[,2]) #0.6397617
+
+mono_25U_100U.vs.1.5U_25U <- findOverlaps(mono_25U_100U,mono_1.5U_25U , minoverlap = 100)
+corr_mono_25U_100U.vs.1.5U_25U <- cbind(mono_25U_100U$nucMACC[mono_25U_100U.vs.1.5U_25U@from],mono_1.5U_25U$nucMACC[mono_25U_100U.vs.1.5U_25U@to])
+cor(corr_mono_25U_100U.vs.1.5U_25U[,1],corr_mono_25U_100U.vs.1.5U_25U[,2]) #0.2441253
+```
+
+```{r mono-nucs: all vs 1.5U_6.25U correlations}
+mono_1.5U_6.25U.vs.1.5U_6.25U <- findOverlaps(mono_1.5U_6.25U,mono_1.5U_6.25U, minoverlap = 100)
+corr_mono_1.5U_6.25U.vs.1.5U_6.25U <- cbind(mono_1.5U_6.25U$nucMACC[mono_1.5U_6.25U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_1.5U_6.25U.vs.1.5U_6.25U@to])
+cor(corr_mono_1.5U_6.25U.vs.1.5U_6.25U[,1],corr_mono_1.5U_6.25U.vs.1.5U_6.25U[,2]) #1
+
+mono_1.5U_25U.vs.1.5U_6.25U  <- findOverlaps(mono_1.5U_25U,mono_1.5U_6.25U, minoverlap = 100)
+corr_mono_1.5U_25U.vs.1.5U_6.25U <- cbind(mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_1.5U_25U.vs.1.5U_6.25U@to])
+cor(corr_mono_1.5U_25U.vs.1.5U_6.25U[,1],corr_mono_1.5U_25U.vs.1.5U_6.25U[,2]) #-0.2887756
+
+mono_1.5U_100U.vs.1.5U_6.25U <- findOverlaps(mono_1.5U_100U,mono_1.5U_6.25U , minoverlap = 100)
+corr_mono_1.5U_100U.vs.1.5U_6.25U <- cbind(mono_1.5U_100U$nucMACC[mono_1.5U_100U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_1.5U_100U.vs.1.5U_6.25U@to])
+cor(corr_mono_1.5U_100U.vs.1.5U_6.25U[,1],corr_mono_1.5U_100U.vs.1.5U_6.25U[,2]) #0.3145642
+
+mono_6.25U_25U.vs.1.5U_6.25U <- findOverlaps(mono_6.25U_25U,mono_1.5U_6.25U , minoverlap = 100)
+corr_mono_6.25U_25U.vs.1.5U_6.25U <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_6.25U_25U.vs.1.5U_6.25U@to])
+cor(corr_mono_6.25U_25U.vs.1.5U_6.25U[,1],corr_mono_6.25U_25U.vs.1.5U_6.25U[,2]) #-0.4376152
+
+mono_6.25U_100U.vs.1.5U_6.25U <- findOverlaps(mono_6.25U_100U,mono_1.5U_6.25U , minoverlap = 100)
+corr_mono_6.25U_100U.vs.1.5U_6.25U <- cbind(mono_6.25U_100U$nucMACC[mono_6.25U_100U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_6.25U_100U.vs.1.5U_6.25U@to])
+cor(corr_mono_6.25U_100U.vs.1.5U_6.25U[,1],corr_mono_6.25U_100U.vs.1.5U_6.25U[,2]) #-0.4656729
+
+mono_25U_100U.vs.1.5U_6.25U <- findOverlaps(mono_25U_100U,mono_1.5U_6.25U , minoverlap = 100)
+corr_mono_25U_100U.vs.1.5U_6.25U <- cbind(mono_25U_100U$nucMACC[mono_25U_100U.vs.1.5U_6.25U@from],mono_1.5U_6.25U$nucMACC[mono_25U_100U.vs.1.5U_6.25U@to])
+cor(corr_mono_25U_100U.vs.1.5U_6.25U[,1],corr_mono_25U_100U.vs.1.5U_6.25U[,2]) #0.3241443
+```
+
+```{r mono-nucs: all vs 1.5U_100U correlations}
+mono_1.5U_100U.vs.1.5U_100U <- findOverlaps(mono_1.5U_100U,mono_1.5U_100U, minoverlap = 100)
+corr_mono_1.5U_100U.vs.1.5U_100U <- cbind(mono_1.5U_100U$nucMACC[mono_1.5U_100U.vs.1.5U_100U@from],mono_1.5U_100U$nucMACC[mono_1.5U_100U.vs.1.5U_100U@to])
+cor(corr_mono_1.5U_100U.vs.1.5U_100U[,1],corr_mono_1.5U_100U.vs.1.5U_100U[,2]) #1
+
+mono_1.5U_25U.vs.1.5U_100U  <- findOverlaps(mono_1.5U_25U,mono_1.5U_100U, minoverlap = 100)
+corr_mono_1.5U_25U.vs.1.5U_100U <- cbind(mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.1.5U_100U@from],mono_1.5U_100U$nucMACC[mono_1.5U_25U.vs.1.5U_100U@to])
+cor(corr_mono_1.5U_25U.vs.1.5U_100U[,1],corr_mono_1.5U_25U.vs.1.5U_100U[,2]) #0.3284976
+
+mono_6.25U_25U.vs.1.5U_100U <- findOverlaps(mono_6.25U_25U,mono_1.5U_100U , minoverlap = 100)
+corr_mono_6.25U_25U.vs.1.5U_100U <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.1.5U_100U@from],mono_1.5U_100U$nucMACC[mono_6.25U_25U.vs.1.5U_100U@to])
+cor(corr_mono_6.25U_25U.vs.1.5U_100U[,1],corr_mono_6.25U_25U.vs.1.5U_100U[,2]) #0.2948656
+
+mono_6.25U_100U.vs.1.5U_100U <- findOverlaps(mono_6.25U_100U,mono_1.5U_100U , minoverlap = 100)
+corr_mono_6.25U_100U.vs.1.5U_100U <- cbind(mono_6.25U_100U$nucMACC[mono_6.25U_100U.vs.1.5U_100U@from],mono_1.5U_100U$nucMACC[mono_6.25U_100U.vs.1.5U_100U@to])
+cor(corr_mono_6.25U_100U.vs.1.5U_100U[,1],corr_mono_6.25U_100U.vs.1.5U_100U[,2]) #0.431609
+
+mono_25U_100U.vs.1.5U_100U <- findOverlaps(mono_25U_100U,mono_1.5U_100U , minoverlap = 100)
+corr_mono_25U_100U.vs.1.5U_100U <- cbind(mono_25U_100U$nucMACC[mono_25U_100U.vs.1.5U_100U@from],mono_1.5U_100U$nucMACC[mono_25U_100U.vs.1.5U_100U@to])
+cor(corr_mono_25U_100U.vs.1.5U_100U[,1],corr_mono_25U_100U.vs.1.5U_100U[,2]) #0.8399413
+```
+
+```{r mono-nucs: all vs 25U_100U correlations}
+mono_25U_100U.vs.25U_100U <- findOverlaps(mono_25U_100U,mono_25U_100U, minoverlap = 100)
+corr_mono_25U_100U.vs.25U_100U <- cbind(mono_25U_100U$nucMACC[mono_25U_100U.vs.25U_100U@from],mono_25U_100U$nucMACC[mono_25U_100U.vs.25U_100U@to])
+cor(corr_mono_25U_100U.vs.25U_100U[,1],corr_mono_25U_100U.vs.25U_100U[,2]) #1
+
+mono_1.5U_25U.vs.25U_100U  <- findOverlaps(mono_1.5U_25U,mono_25U_100U, minoverlap = 100)
+corr_mono_1.5U_25U.vs.25U_100U <- cbind(mono_1.5U_25U$nucMACC[mono_1.5U_25U.vs.25U_100U@from],mono_25U_100U$nucMACC[mono_1.5U_25U.vs.25U_100U@to])
+cor(corr_mono_1.5U_25U.vs.25U_100U[,1],corr_mono_1.5U_25U.vs.25U_100U[,2]) #0.2441253
+
+mono_6.25U_25U.vs.25U_100U <- findOverlaps(mono_6.25U_25U,mono_25U_100U , minoverlap = 100)
+corr_mono_6.25U_25U.vs.25U_100U <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.25U_100U@from],mono_25U_100U$nucMACC[mono_6.25U_25U.vs.25U_100U@to])
+cor(corr_mono_6.25U_25U.vs.25U_100U[,1],corr_mono_6.25U_25U.vs.25U_100U[,2]) #0.2380581
+
+mono_6.25U_100U.vs.25U_100U <- findOverlaps(mono_6.25U_100U,mono_25U_100U , minoverlap = 100)
+corr_mono_6.25U_100U.vs.25U_100U <- cbind(mono_6.25U_100U$nucMACC[mono_6.25U_100U.vs.25U_100U@from],mono_25U_100U$nucMACC[mono_6.25U_100U.vs.25U_100U@to])
+cor(corr_mono_6.25U_100U.vs.25U_100U[,1],corr_mono_6.25U_100U.vs.25U_100U[,2]) #0.3809003
+
+mono_6.25U_25U.vs.6.25U_100U <- findOverlaps(mono_6.25U_25U,mono_6.25U_100U , minoverlap = 100)
+corr_mono_6.25U_25U.vs.6.25U_100U <- cbind(mono_6.25U_25U$nucMACC[mono_6.25U_25U.vs.6.25U_100U@from],mono_6.25U_100U$nucMACC[mono_6.25U_25U.vs.6.25U_100U@to])
+cor(corr_mono_6.25U_25U.vs.6.25U_100U[,1],corr_mono_6.25U_25U.vs.6.25U_100U[,2]) #0.7663785
+```
+
+## Correlation matrix
+```{r mono-nucs corr matrix}
+corr_mono <- read.table("corrMatrix_minMNaseTitrations_monoNucs.csv",header = T,row.names=1)
+#pdf("minMNaseTitrations_corrMatrix_monoNucs.pdf")
+corrplot.mixed(as.matrix(corr_mono))
+#dev.off()
+```
+
+# Sub-nucleosomes
+```{r sub-nucs input}
+sub.nucReadCounts_1.5U_6.25U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len50-139/MNase_ChIP-H3_1.5U/ext70/z70/1.5U+6.25U/nucMACC/nucMACC_scores.csv",header=TRUE)     
+sub.nucReadCounts_1.5U_6.25U <- sub.nucReadCounts_1.5U_6.25U  %>% filter(sub.nucReadCounts_1.5U_6.25U$nucMACC < 30) 
+
+sub.nucReadCounts_1.5U_25U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len50-139/MNase_ChIP-H3_1.5U/ext70/z70/1.5U+25U/nucMACC/nucMACC_scores.csv",header=TRUE)     
+sub.nucReadCounts_1.5U_25U <- sub.nucReadCounts_1.5U_25U %>% filter(sub.nucReadCounts_1.5U_25U$nucMACC < 30) 
+sub.nucReadCounts_1.5U_100U <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len50-139/MNase_ChIP-H3_1.5U/ext70/z70/1.5U+100U/nucMACC/nucMACC_scores.csv",header=TRUE)     
+sub.nucReadCounts_1.5U_100U <- sub.nucReadCounts_1.5U_100U %>% filter(sub.nucReadCounts_1.5U_100U$nucMACC < 30) 
+
+sub.nucReadCounts_all <- read.table("/path/to/project_folder/results/DANPOS/ChIP-H3/len50-139/MNase_ChIP-H3_1.5U/ext70/z70/pooled/nucMACC_filt5/nucMACC_scores.csv",header=TRUE)
+sub.nucReadCounts_all <- sub.nucReadCounts_all %>% filter(sub.nucReadCounts_all$nucMACC < 30) 
+
+```
+
+```{r sub.nucs: GRanges, include=FALSE}
+sub_pooled <- GRanges(sub.nucReadCounts_all)
+sub_1.5U_6.25U <- GRanges(sub.nucReadCounts_1.5U_6.25U)
+sub_1.5U_25U <- GRanges(sub.nucReadCounts_1.5U_25U)
+sub_1.5U_100U <- GRanges(sub.nucReadCounts_1.5U_100U)
+```
+
+## 2 titrations vs. 4 titrations (50% seq. depth)
+```{r sub-nucs: overlaps}
+subNucs_1.5U_6.25U.vs.pooled  <- findOverlaps(sub_1.5U_6.25U,sub_pooled, minoverlap = 70)
+subNucs_1.5U_25U.vs.pooled  <- findOverlaps(sub_1.5U_25U,sub_pooled, minoverlap = 70)
+subNucs_1.5U_100U.vs.pooled <- findOverlaps(sub_1.5U_100U,sub_pooled , minoverlap = 70)
+```
+
+```{r sub-nucs: nucMACC scores}
+#pdf("subNucs_1.5U_6.25U.vs.pooled_nucMACC-corr.pdf")
+corr_subNucs_1.5U_6.25U.vs.pooled <- cbind(sub_1.5U_6.25U$nucMACC[subNucs_1.5U_6.25U.vs.pooled@from],sub_pooled$nucMACC[subNucs_1.5U_6.25U.vs.pooled@to])
+heatscatter(corr_subNucs_1.5U_6.25U.vs.pooled[,1],corr_subNucs_1.5U_6.25U.vs.pooled[,2],cor=T,xlab="1.5U+6.25U",ylab = "pooled",method = "pearson", main="Sub-nucs: 1.5U+6.25U vs. pooled",xlim=c(-20,20),ylim=c(-20,20))
+dev.off()
+pdf("subNucs_1.5U_25U.vs.pooled_nucMACC-corr.pdf")
+corr_subNucs_1.5U_25U.vs.pooled <- cbind(sub_1.5U_25U$nucMACC[subNucs_1.5U_25U.vs.pooled@from],sub_pooled$nucMACC[subNucs_1.5U_25U.vs.pooled@to])
+heatscatter(corr_subNucs_1.5U_25U.vs.pooled[,1],corr_subNucs_1.5U_25U.vs.pooled[,2],cor=T,xlab="1.5U+25U",ylab = "pooled",method = "pearson", main="Sub-nucs: 1.5U+25U vs. pooled",xlim=c(-20,20),ylim=c(-20,20))
+dev.off()
+pdf("subNucs_1.5U_100U.vs.pooled_nucMACC-corr.pdf")
+corr_subNucs_1.5U_100U.vs.pooled <- cbind(sub_1.5U_100U$nucMACC[subNucs_1.5U_100U.vs.pooled@from],sub_pooled$nucMACC[subNucs_1.5U_100U.vs.pooled@to])
+heatscatter(corr_subNucs_1.5U_25U.vs.pooled[,1],corr_subNucs_1.5U_25U.vs.pooled[,2],cor=T,xlab="1.5U+100U",ylab = "pooled",method = "pearson", main="Sub-nucs: 1.5U+100U vs. pooled",xlim=c(-20,20),ylim=c(-20,20))
+#dev.off()
+
+###
+subNucs_1.5U_25U.vs.sub_1.5U_6.25U  <- findOverlaps(sub_1.5U_25U,sub_1.5U_6.25U, minoverlap = 70)
+corr_subNucs_1.5U_25U.vs.sub_1.5U_6.25U <- cbind(sub_1.5U_25U$nucMACC[subNucs_1.5U_25U.vs.sub_1.5U_6.25U@from],sub_1.5U_6.25U$nucMACC[subNucs_1.5U_25U.vs.sub_1.5U_6.25U@to])
+heatscatter(corr_subNucs_1.5U_25U.vs.sub_1.5U_6.25U[,1],corr_subNucs_1.5U_25U.vs.sub_1.5U_6.25U[,2],cor=T,xlab="1.5U+25U",ylab = "1.5U+6.25U",method = "pearson", main="Sub-nucs: 1.5U+25U vs. 1.5U+6.25U",xlim=c(-20,20),ylim=c(-20,20))
+
+subNucs_1.5U_25U.vs.sub_1.5U_100U  <- findOverlaps(sub_1.5U_25U,sub_1.5U_100U, minoverlap = 70)
+corr_subNucs_1.5U_25U.vs.sub_1.5U_100U <- cbind(sub_1.5U_25U$nucMACC[subNucs_1.5U_25U.vs.sub_1.5U_100U@from],sub_1.5U_100U$nucMACC[subNucs_1.5U_25U.vs.sub_1.5U_100U@to])
+heatscatter(corr_subNucs_1.5U_25U.vs.sub_1.5U_100U[,1],corr_subNucs_1.5U_25U.vs.sub_1.5U_100U[,2],cor=T,xlab="1.5U+25U",ylab = "1.5U+100U",method = "pearson", main="Sub-nucs: 1.5U+25U vs. 1.5U+100U",xlim=c(-20,20),ylim=c(-20,20))
+
+subNucs_1.5U_6.25U.vs.sub_1.5U_100U  <- findOverlaps(sub_1.5U_6.25U,sub_1.5U_100U, minoverlap = 70)
+corr_subNucs_1.5U_6.25U.vs.sub_1.5U_100U <- cbind(sub_1.5U_6.25U$nucMACC[subNucs_1.5U_6.25U.vs.sub_1.5U_100U@from],sub_1.5U_100U$nucMACC[subNucs_1.5U_6.25U.vs.sub_1.5U_100U@to])
+heatscatter(corr_subNucs_1.5U_6.25U.vs.sub_1.5U_100U[,1],corr_subNucs_1.5U_6.25U.vs.sub_1.5U_100U[,2],cor=T,xlab="1.5U+6.25U",ylab = "1.5U+100U",method = "pearson", main="Sub-nucs: 1.5U+6.25U vs. 1.5U+100U",xlim=c(-5,5),ylim=c(-5,5))
+
+```
+
+## Correlation matrix
+```{r sub-nucs corr matrix}
+corr_sub <- read.table("corrMatrix_minMNaseTitrations_subNucs.csv",header = T,row.names=1)
+#pdf("minMNaseTitrations_corrMatrix_subNucs.pdf")
+corrplot.mixed(as.matrix(corr_sub))
+#dev.off()
+```
+
+

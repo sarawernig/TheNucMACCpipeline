@@ -1,0 +1,205 @@
+---
+title: "H4: Minimum sequencing depth"
+author: "Sara Wernig-Zorc"
+date: "07/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE, 
+                      error = FALSE)  
+
+knitr::opts_knit$set(root.dir = 
+                       "/path/to/subSampled")
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.width=5, fig.height=5) 
+
+```
+
+```{r libraries, include=FALSE}
+library(LSD)
+library(corrr)
+library(GenomicRanges)
+library(rtracklayer)
+library(org.Dm.eg.db)
+library(ChIPseeker)
+library(dplyr)
+library(ChIPpeakAnno)
+library(venneuler)
+library(corrplot)
+```
+
+# Mono-nucleosomes
+```{r mono-nucs: input, include=FALSE}
+mono_244X <- read.table("/path/to/RUN/09_nucMACC/nucMACC_result_table.tsv",header=TRUE)
+
+mono_183X <-  read.table("/path/to/sub_0.75/RUN/09_nucMACC/nucMACC_result_table.tsv",header=TRUE)
+
+mono_122X <-  read.table("/path/to/sub_0.50/RUN/09_nucMACC/nucMACC_result_table.tsv",header=TRUE)
+
+mono_61X <-  read.table("/path/to/sub_0.25/RUN/09_nucMACC/nucMACC_result_table.tsv",header=TRUE)
+
+mono_30.5X <-  read.table("/path/to/sub_0.13/RUN/09_nucMACC/nucMACC_result_table.tsv",header=TRUE)
+```
+
+```{r mono-nucs:Granges, include=FALSE}
+mono.244X <- GRanges(mono_244X)
+mono.183X <- GRanges(mono_183X)
+mono.122X <- GRanges(mono_122X)
+mono.61X <- GRanges(mono_61X)
+mono.30.5X <- GRanges(mono_30.5X)
+```
+
+## Overlap called nucleosomes
+```{r mono-nucs: overlap}
+makeVennDiagram(Peaks = list(mono.244X,mono.183X,mono.122X), main="Mono-nucleosome minimum seq. coverage",NameOfPeaks=c("244X","183X","122X"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE, euler.d=TRUE)
+
+makeVennDiagram(Peaks = list(mono.244X,mono.61X,mono.30.5X), main="Mono-nucleosome minimum seq. coverage",NameOfPeaks=c("244X","61X","30.5X"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE, euler.d=TRUE)
+```
+
+## nucMACC score correlation
+### 244X (100%) vs. 183X (75%)
+```{r mono-nucs: 244X vs. 183X}
+mono.244Xvs183X  <- findOverlaps(mono.244X,mono.183X, minoverlap = 100)
+mono_244Xvs183X <- cbind(mono.244X$nucMACC[mono.244Xvs183X@from],mono.183X$nucMACC[mono.244Xvs183X@to])
+png("mono_244Xvs183X.png", width = 1280, height = 1280, res =300)
+heatscatter(mono_244Xvs183X[,1],mono_244Xvs183X[,2],cor=T,xlab="244X",ylab = "183X",method = "pearson", main="Mono-nucleosomes")
+dev.off()
+
+cor(mono_244Xvs183X[,1],mono_244Xvs183X[,2])
+```            
+
+### 244X (100%) vs. 122X (50%)
+```{r mono-nucs: 244X vs. 122X}
+mono.244Xvs122X  <- findOverlaps(mono.244X,mono.122X, minoverlap = 100)
+mono_244Xvs122X <- cbind(mono.244X$nucMACC[mono.244Xvs122X@from],mono.122X$nucMACC[mono.244Xvs122X@to])
+png("mono_244Xvs122X.png", width = 1280, height = 1280, res =300)
+heatscatter(mono_244Xvs122X[,1],mono_244Xvs122X[,2],cor=T,xlab="244X",ylab = "122X",method = "pearson", main="Mono-nucleosomes")
+dev.off()
+
+cor(mono_244Xvs122X[,1],mono_244Xvs122X[,2])
+```
+
+### 244X (100%) vs. 61X (25%)
+```{r mono-nucs: 244X vs. 61X}
+mono.244Xvs61X  <- findOverlaps(mono.244X,mono.61X, minoverlap = 100)
+mono_244Xvs61X <- cbind(mono.244X$nucMACC[mono.244Xvs61X@from],mono.61X$nucMACC[mono.244Xvs61X@to])
+png("mono_244Xvs61X.png", width = 1280, height = 1280, res =300)
+heatscatter(mono_244Xvs61X[,1],mono_244Xvs61X[,2],cor=T,xlab="244X",ylab = "61X",method = "pearson", main="Mono-nucleosomes")
+dev.off()
+cor(mono_244Xvs61X[,1],mono_244Xvs61X[,2])
+```
+
+### 244X (100%) vs. 31X (12.5%)
+```{r mono-nucs: 244X vs. 30.5X}
+mono.244Xvs30.5X  <- findOverlaps(mono.244X,mono.30.5X, minoverlap = 100)
+mono_244Xvs30.5X <- cbind(mono.244X$nucMACC[mono.244Xvs30.5X@from],mono.30.5X$nucMACC[mono.244Xvs30.5X@to])
+png("mono_244Xvs31X.png", width = 1280, height = 1280, res =300)
+heatscatter(mono_244Xvs30.5X[,1],mono_244Xvs30.5X[,2],cor=T,xlab="244X",ylab = "30.5X",method = "pearson", main="Mono-nucleosomes")
+dev.off()
+cor(mono_244Xvs30.5X[,1],mono_244Xvs30.5X[,2])
+```
+
+## Correlation matrix
+```{r mono-nucs corr matrix}
+corr_mono <- read.table("/Users/sara/data/MACC_project/OUTPUT/corrMatrix_seqDepth_monoNucs.csv",header = T,row.names=1)
+pdf("SequencingDepth_corrMatrix_monoNucs.pdf")
+corrplot(as.matrix(corr_mono),addCoef.col = 'black',cl.pos = 'r',
+         col = COL2('PRGn',10), tl.col = 'black',type='lower',cl.ratio = 0.2, tl.srt = 45)
+dev.off()
+
+nrow(mono_244X)
+nrow(mono_183X)
+nrow(mono_122X)
+nrow(mono_61X)
+nrow(mono_30.5X)
+```
+
+##########################################################################
+
+# Sub-nucleosomes
+```{r sub-nucs: input, include=FALSE}
+sub_244X <- read.table("/path/to/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=TRUE,sep="\t")
+sub_183X <-  read.table("sub_0.75/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=TRUE,sep="\t")
+sub_122X <-  read.table("sub_0.50/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=TRUE,sep="\t")
+sub_61X <-  read.table("sub_0.25/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=TRUE,sep="\t")
+sub_31X <-  read.table("sub_0.13/RUN/10_sub-nucMACC/sub-nucMACC_result_table.tsv",header=TRUE,sep="\t")
+```
+
+```{r sub-nucs: Granges, include=FALSE}
+sub.244X <- GRanges(sub_244X)
+sub.183X <- GRanges(sub_183X)
+sub.122X <- GRanges(sub_122X)
+sub.61X <- GRanges(sub_61X)
+sub.31X <- GRanges(sub_31X)
+```
+
+## Overlap called nucleosomes
+```{r sub-nucs: overlap}
+makeVennDiagram(Peaks = list(sub.244X,sub.183X,sub.122X), main="sub-nucleosome minimum seq. coverage",
+                NameOfPeaks=c("244X","183X","122X"),
+                minoverlap = 100,ignore.strand = TRUE,totalTest = 1000000,
+                scaled=TRUE, euler.d=TRUE)
+```
+
+## nucMACC score correlation
+### 244X (100%) vs. 183X (75%)
+```{r sub-nucs: 244X vs. 183X}
+sub.244Xvs183X  <- findOverlaps(sub.244X,sub.183X, minoverlap = 100)
+png("sub_244Xvs183X.png", width = 1280, height = 1280, res =300)
+sub_244Xvs183X <- cbind(sub.244X$sub.nucMACC[sub.244Xvs183X@from],sub.183X$sub.nucMACC[sub.244Xvs183X@to])
+heatscatter(sub_244Xvs183X[,1],sub_244Xvs183X[,2],cor=T,xlab="244X",ylab = "183X",method = "pearson", main="sub-nucleosomes")
+dev.off()
+cor(sub_244Xvs183X[,1],sub_244Xvs183X[,2])
+```
+
+### 244X (100%) vs. 122X (50%)
+```{r sub-nucs: 244X vs. 122X}
+sub.244Xvs122X  <- findOverlaps(sub.244X,sub.122X, minoverlap = 100)
+png("sub_244Xvs122X.png", width = 1280, height = 1280, res =300)
+sub_244Xvs122X <- cbind(sub.244X$sub.nucMACC[sub.244Xvs122X@from],sub.122X$sub.nucMACC[sub.244Xvs122X@to])
+heatscatter(sub_244Xvs122X[,1],sub_244Xvs122X[,2],cor=T,xlab="244X",ylab = "122X",method = "pearson", main="sub-nucleosomes")
+dev.off()
+cor(sub_244Xvs122X[,1],sub_244Xvs122X[,2])
+```
+### 244X (100%) vs. 61X (25%)
+```{r sub-nucs: 244X vs. 61X}
+sub.244Xvs61X  <- findOverlaps(sub.244X,sub.61X, minoverlap = 100)
+png("sub_244Xvs61X.png", width = 1280, height = 1280, res =300)
+sub_244Xvs61X <- cbind(sub.244X$sub.nucMACC[sub.244Xvs61X@from],sub.61X$sub.nucMACC[sub.244Xvs61X@to])
+heatscatter(sub_244Xvs61X[,1],sub_244Xvs61X[,2],cor=T,xlab="244X",ylab = "61X",method = "pearson", main="sub-nucleosomes")
+dev.off()
+cor(sub_244Xvs61X[,1],sub_244Xvs61X[,2])
+```
+
+### 244X (100%) vs. 31X (12.5%)
+```{r sub-nucs: 244X vs. 31X}
+sub.244Xvs31X  <- findOverlaps(sub.244X,sub.31X, minoverlap = 100)
+png("sub_244Xvs31X.png", width = 1280, height = 1280, res =300)
+sub_244Xvs31X <- cbind(sub.244X$sub.nucMACC[sub.244Xvs31X@from],sub.31X$sub.nucMACC[sub.244Xvs31X@to])
+heatscatter(sub_244Xvs31X[,1],sub_244Xvs31X[,2],cor=T,xlab="244X",ylab = "31X",method = "pearson", main="sub-nucleosomes")
+dev.off()
+cor(sub_244Xvs31X[,1],sub_244Xvs31X[,2])
+```
+
+## Correlation matrix
+```{r sub-nucs corr matrix}
+corr_sub <- read.table("/Users/sara/data/MACC_project/OUTPUT/corrMatrix_seqDepth_subNucs.csv",header = T,row.names=1)
+pdf("SequencingDepth_corrMatrix_subNucs.pdf")
+corrplot(as.matrix(corr_sub),addCoef.col = 'black',cl.pos = 'r',
+         col = COL2('PRGn',10), tl.col = 'black',type='lower',cl.ratio = 0.2, tl.srt = 45)
+dev.off()
+
+nrow(sub_244X)
+nrow(sub_183X)
+nrow(sub_122X)
+nrow(sub_61X)
+nrow(sub_31X)
+```
+
+# The End

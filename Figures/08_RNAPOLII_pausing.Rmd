@@ -1,0 +1,473 @@
+---
+title: "RNA pol-II pausing index"
+author: "Sara Wernig-Zorc"
+date: "06/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load libraries}
+library(ggplot2)
+library(reshape2)
+library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
+library(ChIPseeker)
+library(GenomicRanges)
+library(dplyr)
+db <- TxDb.Dmelanogaster.UCSC.dm3.ensGene
+
+```
+
+```{bash}
+#Voong et al.: used only top 50% expressed genes because the GRO-seq signal is too low otherwise
+awk '{FS=OFS="\t"}{a = $2 - 150; b= $2 + 150}{print $1,a,b,$4,$5 }' /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes.bed > /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes_TSS.bed
+
+awk '{FS=OFS="\t"}{a = $2 + 250; b = $2 + 2250}{print $1,a,b,$4,$5 }' /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes.bed > /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes_geneBody.bed
+
+
+############## based on Voong et al.
+awk '{FS=OFS="\t"}{a = $2 - 150; b = $2 + 150}{print $1,a,b,$4,$5 }' /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/dm3/Annotation/dm3.refGene.uniq.bed > /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed
+
+awk '{FS=OFS="\t"}{a = $2 + 250; b = $2 + 2250}{print $1,a,b,$4,$5 }' /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/dm3/Annotation/dm3.refGene.uniq.bed > /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed
+
+############## my criteria based on GRO-seq data
+awk '{FS=OFS="\t"}{a = $2 - 50; b = $2 + 200}{print $1,a,b,$4,$5 }' /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/dm3/Annotation/dm3.refGene.uniq.bed > /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed
+
+awk '{FS=OFS="\t"}{a = $2 + 250; b = $2 + 2250}{print $1,a,b,$4,$5 }' /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/dm3/Annotation/dm3.refGene.uniq.bed > /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed
+```
+
+
+```{r files}
+expressGenes.TSS <- read.delim("/Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed",header=FALSE)
+colnames(expressGenes.TSS) <- cbind("chr","start","end","geneName","RPKM")
+
+expressGenes.geneBody <- read.delim("/Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed",header=FALSE)
+colnames(expressGenes.geneBody) <- cbind("chr","start","end","geneName","RPKM")
+
+with.FN <- read.table("~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_with_FN_GeneName.txt", quote="\"", comment.char="")
+colnames(with.FN) <- "geneName"
+withOut.FN <- read.table("~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_withOut_FN_GeneName.txt", quote="\"", comment.char="")
+colnames(withOut.FN) <- "geneName"
+
+TSS.with.FN <- merge(with.FN,expressGenes.TSS,by="geneName")
+TSS.with.FN <- cbind(TSS.with.FN$chr,TSS.with.FN$start,TSS.with.FN$end,TSS.with.FN$geneName,TSS.with.FN$RPKM)
+TSS.withOut.FN <- merge(withOut.FN,expressGenes.TSS,by="geneName")
+TSS.withOut.FN <- cbind(TSS.withOut.FN$chr,TSS.withOut.FN$start,TSS.withOut.FN$end,TSS.withOut.FN$geneName,TSS.withOut.FN$RPKM)
+
+geneBody.with.FN <- merge(with.FN,expressGenes.geneBody,by="geneName")
+geneBody.with.FN <- cbind(geneBody.with.FN$chr,geneBody.with.FN$start,geneBody.with.FN$end,geneBody.with.FN$geneName,geneBody.with.FN$RPKM)
+geneBody.withOut.FN <- merge(withOut.FN,expressGenes.geneBody,by="geneName")
+geneBody.withOut.FN <- cbind(geneBody.withOut.FN$chr,geneBody.withOut.FN$start,geneBody.withOut.FN$end,geneBody.withOut.FN$geneName,geneBody.withOut.FN$RPKM)
+
+write.table(TSS.with.FN,"~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_with_FN_TSS_geneName.bed",quote=FALSE,col.names = FALSE, row.names = FALSE, sep="\t")
+write.table(TSS.withOut.FN,"~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_withOut_FN_TSS_geneName.bed",quote=FALSE,col.names = FALSE, row.names = FALSE, sep="\t")
+write.table(geneBody.with.FN,"~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_with_FN_geneBody_geneName.bed",quote=FALSE,col.names = FALSE, row.names = FALSE, sep="\t")
+write.table(geneBody.withOut.FN,"~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_withOut_FN_geneBody_geneName.bed",quote=FALSE,col.names = FALSE, row.names = FALSE, sep="\t")
+
+```
+
+```{bash all genes}
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed -a 0 -b 0 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_allGenes.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_allGenes.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_allGenes.mat.gz -p 20 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep --binSize 50 2> log.out
+
+plotHeatmap -m /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_allGenes.mat.gz --dpi 400 --outFileName /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_heatmap_allGenes.pdf
+
+#TSS
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed -a 0 -b 0 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_allGenes-TSS.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_allGenes-TSS.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_allGenes_TSS.mat.gz -p 20 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep --missingDataAsZero --binSize 50
+
+#Gene body
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed -a 0 -b 0 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_allGenes-geneBody.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_allGenes-geneBody.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_allGenes_geneBody.mat.gz -p 20 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep --missingDataAsZero --binSize 50
+```
+
+```{bash all expressed}
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes_TSS.bed /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/results/RNA-seq/genes/Expressed_genes_geneBody.bed -a 200 -b 200 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing.mat.gz -p 20 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep  2> log.out
+
+plotHeatmap -m /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing.mat.gz --dpi 400 --outFileName /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_heatmap.pdf
+```
+
+```{bash expressed with FN}
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R ~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_with_FN_TSS_geneName.bed ~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_with_FN_geneBody_geneName.bed -a 0 -b 0 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_withFN.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_withFN.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_withFN.mat.gz -p 10 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep  2>> log.out
+
+plotHeatmap -m /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_withFN.mat.gz --dpi 400 --outFileName /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_heatmap_withFN.pdf
+```
+
+```{bash expressed withOut FN}
+computeMatrix scale-regions -S /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -R ~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_withOut_FN_TSS_geneName.bed ~/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_withOut_FN_geneBody_geneName.bed -a 0 -b 0 --outFileNameMatrix /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_withOutFN.tab --outFileSortedRegions /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_withOutFN.bed -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_withOutFN.mat.gz -p 10 --missingDataAsZero --startLabel "Start" --endLabel "End" --sortUsing mean --sortRegions keep  2> log.out
+
+plotHeatmap -m /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_withOutFN.mat.gz --dpi 400 --outFileName /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_heatmap_withOutFN.pdf
+```
+
+```{r import data from computeMatrix and calculate pausing index}
+sort.geneBody <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_allGenes-geneBody.bed")
+GRO_values.geneBody <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_allGenes-geneBody.tab",skip=2)
+sort.TSS <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_allGenes-TSS.bed")
+GRO_values.TSS <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_allGenes-TSS.tab",skip=2)
+```
+
+```{r all genes}
+GRO_values <- cbind(GRO_values.TSS$genes.23511,GRO_values.geneBody$genes.23511)
+colnames(GRO_values) <- cbind("TSS","GeneBody")
+GRO_values <- as.data.frame(GRO_values)
+
+sort <- cbind(sort.TSS,sort.geneBody)
+
+GRO_values$GeneBody[GRO_values$GeneBody == 0] <- "1"
+regions_values <- cbind(paste("chr",sort$X.chrom,sep=""),
+  sort$start,
+  sort$end,
+  as.numeric(GRO_values$TSS)/(as.numeric(GRO_values$GeneBody)/8))
+
+#Promoter and gene body windows were defined respectively as ‘promoter = TSS ± 150 nt’
+#and ‘gene body = +250 to 2250’ with respect to the TSS (or gene end when less than
+#2250 nt long). For each of these windows, the count of intersecting 5’-ends of GRO-seq
+#read pairs was determined. Pausing indices were calculated as the ratio of promoter
+#window density (read pairs/kb) to gene body density (also calculated as read pairs/kb). 
+
+
+colnames(regions_values) <- cbind("Chr","Start","End","pausing_index")
+regions_values <- as.data.frame(regions_values)
+head(regions_values)
+
+regions_values <- regions_values[order(regions_values$pausing_index),]
+regions_values <- subset(regions_values, regions_values$pausing_index != "NaN")
+
+regions_values <- subset(regions_values, regions_values$pausing_index != "0") #3812
+#regions_values <- subset(regions_values, regions_values$pausing_index > 1)  #2371
+
+#gene body = 0; gives Inf value --> solution: change to gene body value to 1, so it gives back the pausing index as TSS value 
+#OR pausing index as 0 ? 
+#TSS and gene body =0; gives NaN values --> solution: change pausing index to 0
+
+
+data <- GRanges(regions_values)
+anno <- annotatePeak(data, TxDb=db,  tssRegion=c(-100, 100))
+anno <- as.data.frame(anno)
+write.table(anno,"/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/AllGenes_pausingIndex.csv",sep="\t",quote=F,row.names = FALSE)
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_allGenes.pdf")
+boxplot(as.numeric(regions_values$pausing_index),outline=FALSE)
+#dev.off()
+```
+
+```{r combine pausing index with groups}
+with.FN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_TSS_with_FN.bed",header=FALSE)
+colnames(with.FN) <- cbind("chr","start","end","geneName","RPKM")
+
+withOut.FN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_TSS_withOut_FN.bed",header=FALSE)
+colnames(withOut.FN) <- cbind("chr","start","end","geneName","RPKM")
+
+pausing_index <- cbind(anno$geneId,anno$pausing_index)
+colnames(pausing_index) <- cbind("geneName","pausing_index")
+
+with.FN.pausingIndex <- merge(with.FN,pausing_index,by="geneName")
+head(with.FN.pausingIndex)
+with.FN.pausingIndex <- cbind(with.FN.pausingIndex,"withFN")
+colnames(with.FN.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+with.FN.pausingIndex <- distinct(with.FN.pausingIndex)        #1374
+
+withOut.FN.pausingIndex <- merge(withOut.FN,pausing_index,by="geneName")
+head(withOut.FN.pausingIndex)
+withOut.FN.pausingIndex <- cbind(withOut.FN.pausingIndex,"withOutFN")
+colnames(withOut.FN.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+withOut.FN.pausingIndex <- distinct(withOut.FN.pausingIndex)  #5274
+
+##################################
+############# plots ##############
+##################################
+
+comparePI <- rbind(withOut.FN.pausingIndex,with.FN.pausingIndex)
+comparePI <- melt(comparePI,id.vars = "group",measure.vars = "pausing_index")
+
+boxplot <- ggplot(comparePI,aes(x=group,y=log(as.numeric(value)),fill=group))
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#D2ac1e")) + geom_boxplot(outlier.shape = NA)
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_violinPlot.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#D2ac1e"))
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_boxplot.pdf")
+boxplot + geom_boxplot(outlier.shape = NA) +  scale_fill_manual(values=c("#2166AC","#D2ac1e")) + scale_y_continuous(limits = c(0, 3)) #+ geom_jitter(shape=16, position=position_jitter(0.2))
+#dev.off()
+
+wilcox.test(as.numeric(withOut.FN.pausingIndex$pausing_index),as.numeric(with.FN.pausingIndex$pausing_index))
+t.test(as.numeric(withOut.FN.pausingIndex$pausing_index),as.numeric(with.FN.pausingIndex$pausing_index))
+```
+
+#####################################################
+############# ALTERNATIVE READ COUNTING #############
+#####################################################
+
+```{bash alterntive read counting}
+multiBigwigSummary BED-file -b /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_TSS.npz --BED /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_TSS.bed -p 20 --outRawCounts /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_TSS.tab
+
+multiBigwigSummary BED-file -b /Volumes/Sara_RAID_20TB/Sara_data_2018/MNase_project/MACC_project/public_data/GSM3274626_GRO-seq/GSM32746*minus*.bw -o /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_geneBody.npz --BED /Users/sara/data/D.Melanogaster_genome/Drosophila_melanogaster/UCSC/Annotation/dm3_refSeq_geneBody.bed -p 20 --outRawCounts /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_geneBody.tab
+
+sort -k1,1 -k2,2n -k3,3n /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_TSS.tab > /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_TSS.sort.tab
+
+sort -k1,1 -k2,2n -k3,3n /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_geneBody.tab > /Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_geneBody.sort.tab
+```
+
+```{r BIGWIGSUMMARY}
+GRO_values.geneBody <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_geneBody.sort.tab")
+GRO_values.geneBody <- cbind(GRO_values.geneBody,rowMeans(GRO_values.geneBody[,c('X.GSM3274626_SRX026303.flybase.minus.bw.', 'X.GSM3274631_SRX026391.flybase.minus.bw.')], na.rm=TRUE),rowSums(GRO_values.geneBody[,c('X.GSM3274626_SRX026303.flybase.minus.bw.', 'X.GSM3274631_SRX026391.flybase.minus.bw.')], na.rm=TRUE))
+GRO_values.geneBody <- as.data.frame(GRO_values.geneBody)
+colnames(GRO_values.geneBody) <- cbind("Chr","Start","End","GRO-seq rep1","GRO-seq rep2","GRO-seq mean","GRO-seq sum")
+GRO_values.geneBody <- distinct(GRO_values.geneBody)
+
+GRO_values.TSS <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_allGenes_readCounts_TSS.sort.tab")
+GRO_values.TSS <- cbind(GRO_values.TSS,rowMeans(GRO_values.TSS[,c('X.GSM3274626_SRX026303.flybase.minus.bw.', 'X.GSM3274631_SRX026391.flybase.minus.bw.')], na.rm=TRUE),rowSums(GRO_values.TSS[,c('X.GSM3274626_SRX026303.flybase.minus.bw.', 'X.GSM3274631_SRX026391.flybase.minus.bw.')], na.rm=TRUE))
+GRO_values.TSS <- as.data.frame(GRO_values.TSS)
+colnames(GRO_values.TSS) <- cbind("Chr","Start","End","GRO-seq rep1","GRO-seq rep2","GRO-seq mean","GRO-seq sum")
+GRO_values.TSS <- distinct(GRO_values.TSS)
+```
+
+```{r all genes 2}
+GRO_values <- cbind(paste("chr",GRO_values.TSS$Chr,sep=""),GRO_values.TSS$Start,GRO_values.TSS$End,GRO_values.TSS$`GRO-seq sum`,GRO_values.geneBody$`GRO-seq sum`)
+
+colnames(GRO_values) <- cbind("Chr","Start","End","TSS","GeneBody")
+GRO_values <- as.data.frame(GRO_values)
+
+
+GRO_values$GeneBody[GRO_values$GeneBody == 0] <- "1"
+
+regions_values <- cbind(GRO_values,
+    as.numeric(GRO_values$TSS)/(as.numeric(GRO_values$GeneBody)))
+
+#regions_values <- cbind(GRO_values, as.numeric(GRO_values$TSS)/(as.numeric(GRO_values$GeneBody)/8))
+
+colnames(regions_values) <- cbind("Chr","Start","End","TSS","GeneBody","pausing_index")
+regions_values <- as.data.frame(regions_values)
+head(regions_values)
+
+regions_values <- regions_values[order(regions_values$pausing_index),]
+regions_values <- subset(regions_values, regions_values$pausing_index != "NaN")
+
+regions_values <- subset(regions_values, regions_values$pausing_index != "0") #
+#regions_values <- subset(regions_values, regions_values$pausing_index > 1)  #
+
+#gene body = 0; gives Inf value --> solution: change to gene body value to 1, so it gives back the pausing index as TSS value 
+#OR pausing index as 0 ? 
+#TSS and gene body =0; gives NaN values --> solution: change pausing index to 0
+
+
+data <- GRanges(regions_values)
+anno <- annotatePeak(data, TxDb=db,  tssRegion=c(-100, 100))
+anno <- as.data.frame(anno)
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_allGenes.pdf")
+boxplot(as.numeric(regions_values$pausing_index),outline=FALSE)
+#dev.off()
+
+write.table(anno,"/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/AllGenes_pausingIndex_2.csv",sep="\t",quote=F,row.names = FALSE)
+
+```
+
+```{r combine pausing index with groups 2}
+with.FN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_TSS_with_FN.bed",header=FALSE)
+colnames(with.FN) <- cbind("chr","start","end","geneName","RPKM")
+
+withOut.FN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/Expressed_genes_TSS_withOut_FN.bed",header=FALSE)
+colnames(withOut.FN) <- cbind("chr","start","end","geneName","RPKM")
+
+pausing_index <- cbind(anno$geneId,anno$pausing_index)
+colnames(pausing_index) <- cbind("geneName","pausing_index")
+
+with.FN.pausingIndex <- merge(with.FN,pausing_index,by="geneName")
+head(with.FN.pausingIndex)
+with.FN.pausingIndex <- cbind(with.FN.pausingIndex,"withFN")
+colnames(with.FN.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+with.FN.pausingIndex <- distinct(with.FN.pausingIndex)        #1374
+
+withOut.FN.pausingIndex <- merge(withOut.FN,pausing_index,by="geneName")
+head(withOut.FN.pausingIndex)
+withOut.FN.pausingIndex <- cbind(withOut.FN.pausingIndex,"withOutFN")
+colnames(withOut.FN.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+withOut.FN.pausingIndex <- distinct(withOut.FN.pausingIndex)  #5274
+
+##################################
+############# plots ##############
+##################################
+
+comparePI <- rbind(withOut.FN.pausingIndex,with.FN.pausingIndex)
+comparePI <- melt(comparePI,id.vars = "group",measure.vars = "pausing_index")
+
+boxplot <- ggplot(comparePI,aes(x=group,y=log(as.numeric(value)),fill=group))
+#boxplot <- ggplot(comparePI,aes(x=group,y=as.numeric(value),fill=group))
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_2.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#D2ac1e")) + geom_boxplot(outlier.shape = NA)
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_violinPlot_2.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#D2ac1e"))
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_boxplot_2.pdf")
+boxplot + geom_boxplot(outlier.shape = NA) +  scale_fill_manual(values=c("#2166AC","#D2ac1e")) + scale_y_continuous(limits = c(-4, 4)) #+ geom_jitter(shape=16, position=position_jitter(0.2))
+#dev.off()
+
+wilcox.test(as.numeric(with.FN.pausingIndex$pausing_index),as.numeric(withOut.FN.pausingIndex$pausing_index))
+t.test(as.numeric(with.FN.pausingIndex$pausing_index),as.numeric(withOut.FN.pausingIndex$pausing_index))
+```
+
+```{r combine pausing index with groups 3}
+with.FN.with.M1BP <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/expressed_unStable_subNucs_overlap-M1BP.bed",header=FALSE)
+colnames(with.FN.with.M1BP) <- cbind("chr","start","end","geneName","RPKM")
+
+with.FN.withOut.M1BP <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/expressed_unStable_subNucs_NotOverlap-M1BP.bed",header=FALSE)
+colnames(with.FN.withOut.M1BP) <- cbind("chr","start","end","geneName","RPKM")
+
+###
+withOut.FN.with.M1BP <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/expressed_without-unStable_subNucs_overlap-M1BP.bed",header=FALSE)
+colnames(withOut.FN.with.M1BP) <- cbind("chr","start","end","geneName","RPKM")
+
+withOut.FN.withOut.M1BP <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/10_sub-nucMACC/expressed_without-unStable_subNucs_NotOverlap-M1BP.bed",header=FALSE)
+colnames(withOut.FN.withOut.M1BP) <- cbind("chr","start","end","geneName","RPKM")
+
+pausing_index <- cbind(anno$geneId,anno$pausing_index)
+colnames(pausing_index) <- cbind("geneName","pausing_index")
+
+with.FN.with.M1BP.pausingIndex <- merge(with.FN.with.M1BP,pausing_index,by="geneName")
+head(with.FN.with.M1BP.pausingIndex)
+with.FN.with.M1BP.pausingIndex <- cbind(with.FN.with.M1BP.pausingIndex,"withFN.withM1BP")
+colnames(with.FN.with.M1BP.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+with.FN.with.M1BP.pausingIndex <- distinct(with.FN.with.M1BP.pausingIndex)        #
+
+with.FN.withOut.M1BP.pausingIndex <- merge(with.FN.withOut.M1BP,pausing_index,by="geneName")
+head(with.FN.withOut.M1BP.pausingIndex)
+with.FN.withOut.M1BP.pausingIndex <- cbind(with.FN.withOut.M1BP.pausingIndex,"withFN.withOutM1BP")
+colnames(with.FN.withOut.M1BP.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+with.FN.withOut.M1BP.pausingIndex <- distinct(with.FN.withOut.M1BP.pausingIndex)    
+
+withOut.FN.with.M1BP.pausingIndex <- merge(withOut.FN.with.M1BP,pausing_index,by="geneName")
+head(withOut.FN.with.M1BP.pausingIndex)
+withOut.FN.with.M1BP.pausingIndex <- cbind(withOut.FN.with.M1BP.pausingIndex,"withOutFN.withM1BP")
+colnames(withOut.FN.with.M1BP.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+withOut.FN.with.M1BP.pausingIndex <- distinct(withOut.FN.with.M1BP.pausingIndex)  #
+
+withOut.FN.withOut.M1BP.pausingIndex <- merge(withOut.FN.withOut.M1BP,pausing_index,by="geneName")
+head(withOut.FN.withOut.M1BP.pausingIndex)
+withOut.FN.withOut.M1BP.pausingIndex <- cbind(withOut.FN.withOut.M1BP.pausingIndex,"withOutFN.withOutM1BP")
+colnames(withOut.FN.withOut.M1BP.pausingIndex) <- cbind("geneName","chr","start","end","RPKM","pausing_index","group")
+withOut.FN.withOut.M1BP.pausingIndex <- distinct(withOut.FN.withOut.M1BP.pausingIndex)  #
+
+##################################
+############# plots ##############
+##################################
+
+comparePI <- rbind(with.FN.with.M1BP.pausingIndex,with.FN.withOut.M1BP.pausingIndex,withOut.FN.with.M1BP.pausingIndex,withOut.FN.withOut.M1BP.pausingIndex)
+comparePI <- melt(comparePI,id.vars = "group",measure.vars = "pausing_index")
+
+boxplot <- ggplot(comparePI,aes(x=group,y=log(as.numeric(value)),fill=group))
+#boxplot <- ggplot(comparePI,aes(x=group,y=as.numeric(value),fill=group))
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_groups.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#2166AC","#D2ac1e","#D2ac1e")) + geom_boxplot(outlier.shape = NA)
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_violinPlot_groups.pdf")
+boxplot + geom_violin(scale="area",trim=TRUE)  +
+  scale_fill_manual(values=c("#2166AC","#2166AC","#D2ac1e","#D2ac1e"))
+#dev.off()
+
+#pdf("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/plots/pausing_index_with-or-without-FN_boxplot_groups.pdf")
+boxplot + geom_boxplot(outlier.shape = NA) +  scale_fill_manual(values=c("#2166AC","#2166AC","#D2ac1e","#D2ac1e")) + scale_y_continuous(limits = c(-4, 4)) #+ geom_jitter(shape=16, position=position_jitter(0.2))
+#dev.off()
+
+
+###### Comparisons
+wilcox.test(as.numeric(with.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.with.M1BP.pausingIndex$pausing_index))   #0.02278
+t.test(as.numeric(with.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.with.M1BP.pausingIndex$pausing_index))        #not significant
+
+wilcox.test(as.numeric(with.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(with.FN.withOut.M1BP.pausingIndex$pausing_index))       #not significant
+t.test(as.numeric(with.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(with.FN.withOut.M1BP.pausingIndex$pausing_index))           #not significant
+
+wilcox.test(as.numeric(withOut.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.withOut.M1BP.pausingIndex$pausing_index)) #not significant
+t.test(as.numeric(withOut.FN.with.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.withOut.M1BP.pausingIndex$pausing_index))      #not significant
+
+wilcox.test(as.numeric(with.FN.withOut.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.withOut.M1BP.pausingIndex$pausing_index))   #not significant
+t.test(as.numeric(with.FN.withOut.M1BP.pausingIndex$pausing_index),as.numeric(withOut.FN.withOut.M1BP.pausingIndex$pausing_index))        #not significant
+```
+
+
+################
+
+```{r expressed with FN}
+sort <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_withFN.bed")
+GRO_values_withFN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_withFN.tab",skip=2)
+
+GRO_values_withFN$Expressed_genes_with_FN_geneBody_geneName.bed.4062[GRO_values_withFN$Expressed_genes_with_FN_geneBody_geneName.bed.4062 == 0] <- "1"
+
+regions_values_withFN <- cbind(paste("chr",sort$X.chrom,sep=""),
+  sort$start,
+  sort$end,
+  as.numeric(GRO_values_withFN$Expressed_genes_with_FN_TSS_geneName.bed.4062)/as.numeric(GRO_values_withFN$Expressed_genes_with_FN_geneBody_geneName.bed.4062),"with_FN")
+
+
+#gene body = 0; gives Inf value --> solution: change to gene body value to 1, so it gives back the pausing index as TSS value 
+#OR pausing index as 0 ? 
+#TSS and gene body =0; gives NaN values --> solution: change pausing index to 0
+
+colnames(regions_values_withFN) <- cbind("Chr","Start","End","pausing_index","group")
+regions_values_withFN <- as.data.frame(regions_values_withFN)
+head(regions_values_withFN)
+
+regions_values_withFN <- regions_values_withFN[order(regions_values_withFN$pausing_index),]
+regions_values_withFN = subset(regions_values_withFN, regions_values_withFN$pausing_index != "NaN")
+
+data <- GRanges(regions_values_withFN)
+anno <- annotatePeak(data, TxDb=db,  tssRegion=c(-100, 100))
+head(as.data.frame(anno))
+write.table(anno,"/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/ExpressedGenes_pausingIndex_withFN.csv",sep="\t",quote=F,row.names = FALSE)
+```
+
+```{r expressed withOut FN}
+sort <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_sortedRegions_withOutFN.bed")
+GRO_values_withOut_FN <- read.delim("/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/GRO-seq_pausing_values_withOutFN.tab",skip=2)
+
+GRO_values_withOut_FN$Expressed_genes_withOut_FN_geneBody_geneName.bed.13088[GRO_values_withOut_FN$Expressed_genes_withOut_FN_geneBody_geneName.bed.13088 == 0] <- "1"
+
+regions_values_withOutFN <- cbind(paste("chr",sort$X.chrom,sep=""),
+  sort$start,
+  sort$end,
+  as.numeric(GRO_values_withOut_FN$Expressed_genes_withOut_FN_TSS_geneName.bed.13088)/as.numeric(GRO_values_withOut_FN$Expressed_genes_withOut_FN_geneBody_geneName.bed.13088),"withOut_FN")
+
+#gene body = 0; gives Inf value --> solution: change to gene body value to 1, so it gives back the pausing index as TSS value 
+#OR pausing index as 0 ? 
+#TSS and gene body = 0; gives NaN values --> solution: change pausing index to 0
+
+colnames(regions_values_withOutFN) <- cbind("Chr","Start","End","pausing_index","group")
+regions_values_withOutFN <- as.data.frame(regions_values_withOutFN)
+regions_values_withOutFN$pausing_index[is.nan(regions_values_withOutFN$pausing_index)] <- 0
+
+regions_values_withOutFN <- regions_values_withOutFN[order(regions_values_withOutFN$pausing_index),]
+regions_values_withOutFN = subset(regions_values_withOutFN, regions_values_withOutFN$pausing_index != "NaN")
+
+head(regions_values_withOutFN)
+
+data <- GRanges(regions_values_withOutFN)
+anno <- annotatePeak(data, TxDb=db,  tssRegion=c(-100, 100))
+head(as.data.frame(anno))
+write.table(anno,"/Users/sara/data/MACC_project/nextflow_out/H4_ChIP_v2.1_featureCOUNTS/RUN/11_motifs/GRO-seq/ExpressedGenes_pausingIndex_withOutFN.csv",sep="\t",quote=F,row.names = FALSE)
+
+#### plots 
+comparePI <- rbind(regions_values_withFN,regions_values_withOutFN)
+comparePI <- melt(comparePI,id.vars = "group",measure.vars = "pausing_index")
+
+boxplot <- ggplot(comparePI,aes(x=group,y=as.numeric(value),fill=group))
+boxplot + geom_violin(scale="area",trim=TRUE) + scale_y_continuous(limits = c(0, 10)) +
+  scale_fill_manual(values=c("#2166AC","#D2ac1e")) 
+
+boxplot + geom_boxplot(outlier.shape = NA) + scale_y_continuous(limits = c(0, 2)) + scale_fill_manual(values=c("#2166AC","#D2ac1e")) 
+# + geom_jitter(shape=16, position=position_jitter(0.2))
+```
+
